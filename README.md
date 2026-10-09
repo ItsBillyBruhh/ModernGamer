@@ -2,7 +2,7 @@
 
 Dark gray, panel-free Spicetify theme with animated RGB accents.
 
-![Preview](https://i.ibb.co/KcP8397G/Screenshot-2026-10-09-150300.png)
+![Preview](preview.png)
 
 ## Features
 - Player docked at the top of the right sidebar: cover → title → artist → progress → controls → volume

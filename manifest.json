@@ -1,12 +1,14 @@
 {
   "name": "Modern Gamer",
   "description": "Dark gray, panel-free theme with animated RGB accents and the player docked at the top of the right sidebar.",
-  "preview": "preview.png",
+  "preview": "icon.png",
   "readme": "README.md",
   "usercss": "user.css",
   "schemes": "color.ini",
   "authors": [
-    { "name": "ItsBillyBruhh", "url": "https://github.com/ItsBillyBruhh" }
+    {
+      "name": "Modern Gamer"
+    }
   ],
   "include": [
     "https://itsbillybruhh.github.io/ModernGamer/theme.js"

@@ -568,3 +568,20 @@ input[type="range"] { accent-color: var(--mg-blue); }
     animation: none !important;
   }
 }
+
+
+/* Buttons: their label colour comes from --spice-main, which this theme makes
+   transparent inside panels (so panels are see-through). Give buttons the real
+   value back so text on light/primary buttons (e.g. Marketplace Install) shows. */
+.mg-main button, .mg-ls button, .mg-rs button, .mg-gn button {
+  --spice-main: #141416;
+}
+
+.main-buttons-button.main-button-primary,
+.main-button-primary {
+  background: linear-gradient(135deg, #7C4DFF, #00E5FF) !important;
+  color: #fff !important;
+  border: 0 !important;
+}
+.main-buttons-button.main-button-primary *,
+.main-button-primary * { color: #fff !important; }
