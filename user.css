@@ -1,0 +1,570 @@
+/*
+  Modern Gamer
+  Panel-free dark canvas with animated RGB accents. Player docked at the
+  top of the right column. RGB effects live in the last section — delete
+  it (or set the animations to none) for a static look.
+*/
+
+:root {
+  --mg-blue: #7C4DFF;
+  --mg-blue-bright: #00E5FF;
+  --mg-line: rgba(255, 255, 255, .08);
+  --mg-hover: rgba(124, 77, 255, .10);
+  --mg-selected: rgba(124, 77, 255, .20);
+  --mg-radius: 14px;
+}
+
+/* ===============================================================
+   1. CANVAS + GRID  (player into the right column, above sidebar)
+   =============================================================== */
+.mg-top,
+.Root__top-container,
+div:has(> .Root__lyrics-cinema) {
+  background: linear-gradient(180deg, var(--spice-sidebar-alt) 0%, var(--spice-sidebar) 100%) !important;
+  overflow: hidden;
+  gap: 0 !important;
+  padding: 0 !important;
+  grid-template-areas:
+    "top-banner   top-banner  top-banner"
+    "global-nav   global-nav  global-nav"
+    "left-sidebar main-view   now-playing-bar"
+    "left-sidebar main-view   right-sidebar" !important;
+  grid-template-rows: auto auto auto 1fr !important;
+}
+
+/* every panel is see-through: no cards, no floating boxes */
+.mg-ls, .mg-main, .mg-rs, .mg-gn,
+.Root__nav-bar, .Root__main-view, .Root__right-sidebar {
+  background: transparent !important;
+  background-color: transparent !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Spotify paints panels with its base colours (your `main`); make those
+   transparent inside the panels only, so the gradient canvas shows through.
+   Menus and popups live outside the panels and keep their normal colours. */
+.mg-ls, .mg-main, .mg-rs, .mg-gn {
+  --spice-main: transparent;
+  --background-base: transparent;
+  --background-elevated-base: transparent;
+  --background-tinted-base: transparent;
+}
+
+/* cards the script found in the right sidebar (Credits, Queue, ...) */
+.mg-flat {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+/* quiet vertical dividers instead of panel edges */
+.mg-ls  { border-right: 1px solid var(--mg-line) !important; }
+.mg-rs,
+.mg-npb { border-left: 1px solid var(--mg-line) !important; }
+
+.mg-rs { height: auto !important; min-height: 100% !important; }
+
+/* solid backgrounds inside panels that would otherwise show */
+.main-yourLibraryX-libraryContainer,
+.main-yourLibraryX-entryPoints,
+.main-entityHeader-backgroundColor,
+.main-home-homeHeader,
+.playlist-playlist-playlistContent,
+.lyrics-lyrics-background,
+.marketplace-header,
+.main-actionBarBackground-background {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+.main-entityHeader-overlay,
+.main-entityHeader-background.main-entityHeader-overlay:after {
+  background: none !important;
+  animation: none !important;
+}
+
+.main-entityHeader-background.main-entityHeader-gradient {
+  opacity: .3;
+  animation: none !important;
+}
+
+.main-topBar-background {
+  background-color: rgba(20, 20, 22, .6) !important;
+  backdrop-filter: blur(14px);
+}
+
+/* ===============================================================
+   2. THE PLAYER — stacked, centred:
+      cover → title → artist → progress → controls → volume row
+   =============================================================== */
+.mg-npb {
+  height: auto !important;
+  min-height: 0 !important;
+  align-self: start;
+  /* The player must never be wider than the right-sidebar column.
+     width:0 + percentage min-width = it takes the column's width but adds
+     nothing to it (the old Spotify width variable was far wider than the panel). */
+  width: 0 !important;
+  min-width: max(100%, 340px) !important;
+  max-width: none !important;
+  box-sizing: border-box;
+  overflow: hidden;
+  z-index: 1;
+  background: radial-gradient(280px 230px at 50% 30%, rgba(255, 255, 255, .05), transparent 72%) !important;
+}
+
+.mg-npb > *,
+.mg-npb [data-testid="now-playing-bar"] {
+  height: auto !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+/* every wrapper between the player root and its content: no min-width,
+   never wider than the column (Spotify gives these ~600px minimums) */
+.mg-wrap,
+.main-nowPlayingBar-nowPlayingBar,
+.main-nowPlayingBar-container {
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+}
+
+/* the three blocks (info / controls / volume) stacked vertically */
+.mg-pc {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 14px;
+  width: 100% !important;
+  height: auto !important;
+  padding: 40px 22px 16px !important;   /* top gap clears window buttons */
+  box-sizing: border-box;
+}
+
+.mg-pl, .mg-pm, .mg-pr {
+  box-sizing: border-box;
+  overflow: hidden;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  flex: none !important;
+}
+
+/* ---- cover + text ---- */
+.mg-widget {
+  display: flex !important;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  gap: 4px 10px;
+  text-align: center;
+}
+
+.mg-cchain {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: visible !important;
+}
+
+/* the flex item that sits directly in the widget takes a full row */
+.mg-widget > .mg-cchain {
+  flex: 0 0 100% !important;
+  padding: 12px 0 !important;      /* room for the 220px ring around the 200px cover */
+  margin-bottom: 6px !important;
+}
+
+.mg-cimg {
+  position: relative !important;
+  inset: auto !important;
+  z-index: 1;
+  width: 200px !important;
+  height: 200px !important;
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 50% !important;
+  box-shadow: 0 0 0 3px #141416;
+  animation: mg-spin 28s linear infinite;
+  animation-play-state: paused;
+}
+
+.running-animation { animation-play-state: running !important; }
+
+@keyframes mg-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* title + artist */
+.mg-widget [data-testid="context-item-info-title"],
+.mg-widget [data-testid="context-item-link"],
+.mg-widget a[href^="/album/"],
+.mg-widget .main-trackInfo-name {
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  letter-spacing: -.01em;
+}
+
+.mg-widget [data-testid="context-item-info-artist"],
+.mg-widget a[href^="/artist/"],
+.mg-widget .main-trackInfo-artists {
+  font-size: 13px !important;
+  color: var(--spice-subtext) !important;
+}
+
+.mg-widget .main-trackInfo-container {
+  text-align: center;
+  align-items: center;
+  width: auto !important;
+  max-width: calc(100% - 52px);
+}
+
+/* ---- progress above buttons ---- */
+.mg-pcm {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.mg-btns > * { margin: 0 !important; }
+
+/* 3 equal columns: [left buttons] [PLAY] [right buttons] -> play is exactly centred */
+.mg-btns3 {
+  display: grid !important;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  justify-content: normal !important;
+  gap: 14px;
+}
+.mg-btns3 > .mg-bl {
+  display: flex !important;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+.mg-btns3 > .mg-br {
+  display: flex !important;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 12px;
+}
+.mg-playwrap {
+  display: flex !important;
+  justify-content: center;
+  align-items: center;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.mg-playwrap [data-testid="control-button-playpause"],
+.mg-btns [data-testid="control-button-playpause"] {
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.mg-prog { order: 1; width: 100% !important; max-width: none !important; }
+.mg-btns {
+  order: 2;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center;
+  gap: 10px;
+  width: 100% !important;
+}
+
+/* big round play button */
+.mg-pm [data-testid="control-button-playpause"],
+.main-playPauseButton-button {
+  width: 52px !important;
+  height: 52px !important;
+  border-radius: 50% !important;
+  background-color: var(--spice-button) !important;
+  color: #fff !important;
+  box-shadow: 0 6px 22px rgba(124, 77, 255, .55);
+  transition: transform .15s ease, background-color .15s ease;
+}
+
+.mg-pm [data-testid="control-button-playpause"]:hover {
+  background-color: var(--spice-button-active) !important;
+  transform: scale(1.07);
+}
+
+/* ---- utility row (lyrics, queue, devices, volume, mini, fullscreen) ---- */
+.mg-row {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  width: 100% !important;
+  gap: 6px;
+}
+
+.mg-vol {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  max-width: none !important;
+  min-width: 70px;
+}
+
+/* ===============================================================
+   3. LEFT SIDEBAR
+   =============================================================== */
+.main-yourLibraryX-filterArea button,
+.main-tag-container {
+  border-radius: 999px !important;
+}
+
+.main-tag-container { color: var(--spice-sidebar); }
+
+/* ===============================================================
+   4. PLAYLIST HEADER — small cover, big title, tight to actions
+   =============================================================== */
+.main-entityHeader-container,
+.main-entityHeader-container.main-entityHeader-nonWrapped {
+  height: auto !important;
+  min-height: 0 !important;
+  padding-top: 8px !important;
+  padding-bottom: 12px !important;
+  align-items: flex-end;
+}
+
+.main-entityHeader-imageContainer,
+.main-entityHeader-image {
+  width: 128px !important;
+  height: 128px !important;
+  min-width: 128px !important;
+  border-radius: var(--mg-radius) !important;
+  overflow: hidden;
+}
+
+.main-entityHeader-title h1,
+.main-entityHeader-title .main-entityHeader-titleText {
+  font-size: 60px !important;
+  line-height: 1.1 !important;
+  font-weight: 800 !important;
+  letter-spacing: -.02em;
+}
+
+.main-actionBar-ActionBarRow {
+  padding-top: 10px !important;
+  background: transparent !important;
+}
+
+.main-playButton-PlayButton {
+  border-radius: 50% !important;
+  background-color: var(--spice-button) !important;
+  color: #fff !important;
+  box-shadow: 0 6px 22px rgba(124, 77, 255, .45);
+  transition: transform .15s ease, background-color .15s ease;
+}
+
+.main-playButton-PlayButton:hover {
+  background-color: var(--spice-button-active) !important;
+  transform: scale(1.05);
+}
+
+/* ===============================================================
+   5. TRACK LIST + FINISHING TOUCHES
+   =============================================================== */
+.main-trackList-trackListRow {
+  border-radius: 10px;
+  transition: background-color .15s ease;
+}
+
+.main-trackList-trackListRow:hover,
+.main-trackList-trackListRow:focus-within {
+  background-color: var(--mg-hover) !important;
+}
+
+.main-trackList-trackListRow[aria-selected="true"] {
+  background-color: var(--mg-selected) !important;
+}
+
+.main-trackList-trackListHeader,
+.main-yourLibraryX-header {
+  border-color: var(--mg-line) !important;
+}
+
+input:focus {
+  outline: 1px solid rgba(124, 77, 255, .72) !important;
+  box-shadow: 0 0 0 3px rgba(124, 77, 255, .14) !important;
+}
+
+input[type="range"] { accent-color: var(--mg-blue); }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .22); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0, 229, 255, .6); }
+::-webkit-scrollbar-track { background: transparent; }
+[class*="os-scrollbar"] [class*="os-scrollbar-handle"] {
+  background: rgba(255, 255, 255, .22) !important;
+  border-radius: 999px !important;
+}
+
+
+/* ===============================================================
+   6. RGB LAYER  (everything animated lives here)
+   =============================================================== */
+:root {
+  --mg-rgb:   linear-gradient(90deg,  #FF2D55, #FF9500, #FFE600, #2BFF88, #00E5FF, #7C4DFF, #FF2BD6, #FF2D55);
+  --mg-rgb-v: linear-gradient(180deg, #FF2D55, #FF9500, #FFE600, #2BFF88, #00E5FF, #7C4DFF, #FF2BD6, #FF2D55);
+}
+
+@keyframes mg-flow  { from { background-position: 0% 0; } to { background-position: 200% 0; } }
+@keyframes mg-flowv { from { background-position: 0 0%; } to { background-position: 0 200%; } }
+@keyframes mg-hue   { to { filter: hue-rotate(360deg); } }
+@keyframes mg-ring  {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* RGB lines: a strip along the bottom of the top nav + two vertical dividers. */
+.mg-ls, .mg-main, .mg-npb { position: relative; }
+.mg-ls { border-right: 0 !important; }
+.mg-rs, .mg-npb { border-left: 0 !important; }
+
+.mg-gn { position: relative; }
+.mg-gn::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 2px;
+  background: var(--mg-rgb);
+  background-size: 200% 100%;
+  animation: mg-flow 6s linear infinite;
+  box-shadow: 0 0 12px rgba(124, 77, 255, .6);
+  pointer-events: none;
+  z-index: 6;
+}
+
+/* top nav: no solid bar, the canvas shows through (also its pseudo-element fills) */
+.mg-gn::before,
+.mg-gn > *::before,
+.mg-gn > * > *::before {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+.mg-ls::after,
+.mg-main::after {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; right: 0;
+  width: 1px;
+  background: var(--mg-rgb-v);
+  background-size: 100% 200%;
+  background-attachment: fixed;
+  animation: mg-flowv 8s linear infinite;
+  opacity: .5;
+  pointer-events: none;
+  z-index: 6;
+}
+
+/* spinning RGB ring around the cover */
+.mg-widget > .mg-cchain { position: relative; }
+.mg-widget > .mg-cchain::before {
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 220px; height: 220px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, #FF2D55, #FF9500, #FFE600, #2BFF88, #00E5FF, #7C4DFF, #FF2BD6, #FF2D55);
+  box-shadow: 0 0 36px rgba(124, 77, 255, .6);
+  animation: mg-ring 5s linear infinite;
+  z-index: 0;
+}
+
+/* progress + volume fills (tagged by theme.js) flow through the spectrum */
+.mg-fill {
+  background-color: transparent !important;
+  background-image: var(--mg-rgb) !important;
+  background-size: 200% 100% !important;
+  animation: mg-flow 5s linear infinite;
+}
+
+/* play buttons: violet→cyan fill with a spinning RGB ring (same look everywhere) */
+@property --mg-a { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@keyframes mg-angle { to { --mg-a: 360deg; } }
+
+.mg-pm [data-testid="control-button-playpause"],
+.main-playButton-PlayButton,
+[data-testid="play-button"],
+.main-card-PlayButtonContainer button {
+  box-sizing: border-box !important;
+  border: 3px solid transparent !important;
+  background:
+    linear-gradient(135deg, #7C4DFF, #00E5FF) padding-box,
+    conic-gradient(from var(--mg-a), #FF2D55, #FF9500, #FFE600, #2BFF88, #00E5FF, #7C4DFF, #FF2BD6, #FF2D55) border-box !important;
+  animation: mg-angle 4s linear infinite !important;
+  box-shadow: 0 6px 24px rgba(124, 77, 255, .55) !important;
+  filter: none !important;
+  border-radius: 50% !important;
+}
+
+/* white icon on the gradient (Spotify's default is a dark icon) */
+.mg-pm [data-testid="control-button-playpause"],
+.mg-pm [data-testid="control-button-playpause"] *,
+.main-playButton-PlayButton,
+.main-playButton-PlayButton *,
+[data-testid="play-button"],
+[data-testid="play-button"] *,
+.main-card-PlayButtonContainer button,
+.main-card-PlayButtonContainer button * {
+  color: #fff !important;
+  fill: #fff !important;
+}
+.mg-pm [data-testid="control-button-playpause"] > * {
+  background: transparent !important;
+}
+
+/* neon edge on hovered / selected rows and cards */
+.main-trackList-trackListRow:hover,
+.main-trackList-trackListRow:focus-within {
+  box-shadow: inset 3px 0 0 #00E5FF;
+}
+.main-trackList-trackListRow[aria-selected="true"] {
+  box-shadow: inset 3px 0 0 #FF2BD6;
+}
+.main-card-card:hover {
+  box-shadow: 0 0 0 1px rgba(0, 229, 255, .55), 0 12px 40px rgba(124, 77, 255, .35);
+}
+
+/* the tinted gray/colored backdrops Spotify puts behind page headers */
+.mg-bgkill {
+  background: none !important;
+  background-color: transparent !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mg-gn::after, .mg-ls::after, .mg-main::after,
+  .mg-widget > .mg-cchain::before, .mg-fill,
+  .mg-pm [data-testid="control-button-playpause"], .main-playButton-PlayButton,
+  [data-testid="play-button"], .main-card-PlayButtonContainer button {
+    animation: none !important;
+  }
+}
