@@ -220,26 +220,24 @@ function clearBars(root) {
   }
 }
 
-/* ================= NEON VISUALIZER =================
-   Two views, one engine:
-   1. a background layer behind the whole UI (Ctrl+Alt+B toggles it)
-   2. a Visualizer page over the main area, opened with the top-bar button
-      or Ctrl+Alt+V (Esc closes it): cover, song info, progress + radial bars.
-   It follows Spotify's analysis of the playing track (beats, loudness, pitch)
-   in time with playback; it does not hear your speakers. Tracks without
-   analysis get a generated beat animation.                                   */
+/* ================= VISUALIZER PAGE =================
+   A page over the main area (top-bar button or Ctrl+Alt+V, Esc closes):
+   cover, song info, progress bar and a neon radial visualizer.
+   It follows Spotify's analysis of the playing track (beats, loudness,
+   pitch) in time with playback; it does not hear your speakers. Tracks
+   without analysis get a generated beat animation.                      */
 function startVisualizer(top) {
-  if (!MG_VIZ_ENABLED || document.getElementById('mg-viz')) return;
+  if (!MG_VIZ_ENABLED || document.getElementById('mg-vizpage')) return;
 
   const N = 56;                          // bars
+  const PAGE_CY = 0.34;                  // vertical centre of the cover on the page (fraction of height)
   const levels = new Float32Array(N);
   const target = new Float32Array(N);
   const cache = new Map();
   let analysis = null, analysisUri = '';
   let playing = false, beatPulse = 0, loud = 0, peak = 0;
   let raf = 0, last = 0, lastKey = '';
-  let bgOn = true, pageOpen = false;
-  try { bgOn = localStorage.getItem('mg-viz-off') !== '1'; } catch (e) {}
+  let pageOpen = false;
 
   const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
   const fmt = (ms) => {
@@ -255,15 +253,6 @@ function startVisualizer(top) {
     }
     return ans;
   }
-
-  /* ---------- background canvas ---------- */
-  const bg = document.createElement('canvas');
-  bg.id = 'mg-viz';
-  top.appendChild(bg);
-  const bgCtx = bg.getContext('2d');
-  const BG_SCALE = 0.5;
-  let bgW = 2, bgH = 2;
-  bg.style.display = bgOn ? '' : 'none';
 
   /* ---------- visualizer page ---------- */
   const page = document.createElement('div');
@@ -325,17 +314,31 @@ function startVisualizer(top) {
     pH = Math.max(2, Math.floor(ch * P_SCALE));
     pc.width = pW;
     pc.height = pH;
-    pageR = Math.max(70, Math.min(150, ch * 0.17));
+    pageR = Math.max(70, Math.min(130, ch * 0.17));
     cover.style.width = cover.style.height = pageR * 2 + 'px';
     cover.style.marginLeft = cover.style.marginTop = -pageR + 'px';
-    info.style.top = ch * 0.38 + pageR + 56 + 'px';
+    cover.style.top = ch * PAGE_CY + 'px';
+    // song info sits BELOW the longest bars / expanding beat ring so nothing crosses the text
+    info.style.top = ch * PAGE_CY + pageR + 14 + Math.min(cw, ch) * 0.15 * 1.45 + 14 + 'px';
   }
 
-  function resizeBg() {
-    bgW = Math.max(2, Math.floor(window.innerWidth * BG_SCALE));
-    bgH = Math.max(2, Math.floor(window.innerHeight * BG_SCALE));
-    bg.width = bgW;
-    bg.height = bgH;
+  // match the bell / avatar icons: same centre line, sitting just left of them
+  function alignBtn() {
+    const nav = top.querySelector(':scope > .mg-gn');
+    if (!nav || !nav.querySelectorAll) return;
+    const vw = window.innerWidth;
+    let best = null;
+    for (const el of nav.querySelectorAll('button, a, [role="button"]')) {
+      if (el === btn) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 18 || r.width > 56 || r.height < 18 || r.height > 56) continue;
+      if (r.right < vw - 400 || r.right > vw - 130) continue;   // the right-hand icon group only
+      if (!best || r.left < best.left) best = r;                 // leftmost of them = the bell
+    }
+    if (!best) return;
+    const size = 32;
+    btn.style.top = Math.round(best.top + best.height / 2 - size / 2) + 'px';
+    btn.style.right = Math.round(vw - best.left + 8) + 'px';
   }
 
   /* ---------- track info ---------- */
@@ -457,31 +460,12 @@ function startVisualizer(top) {
   }
 
   /* ---------- painting ---------- */
-  function paintBars(ctx, W, H, hue0, heightFrac) {
-    const bw = W / N, maxH = H * heightFrac;
-    for (let i = 0; i < N; i++) {
-      const h = Math.max(3, levels[i] * maxH);
-      const x = i * bw + bw * 0.5;
-      const hue = (hue0 + (i / N) * 300) % 360;
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = `hsla(${hue},100%,55%,0.16)`;
-      ctx.fillRect(x - bw * 0.45, H - h, bw * 0.9, h);
-      ctx.shadowColor = `hsl(${hue},100%,60%)`;
-      ctx.shadowBlur = 12;
-      ctx.fillStyle = `hsla(${hue},100%,62%,0.9)`;
-      ctx.fillRect(x - bw * 0.2, H - h, bw * 0.4, h);
-      ctx.fillStyle = `hsla(${hue},100%,88%,1)`;
-      ctx.fillRect(x - bw * 0.2, H - h - 3, bw * 0.4, 2);
-    }
-    ctx.shadowBlur = 0;
-  }
-
   function paintRadial(ctx, W, H, hue0) {
     const M = 120;
-    const cx = W / 2, cy = H * 0.38;
+    const cx = W / 2, cy = H * PAGE_CY;
     const R = pageR * P_SCALE;
     const r0 = R + 14 * P_SCALE;
-    const maxLen = Math.min(W, H) * 0.17;
+    const maxLen = Math.min(W, H) * 0.15;
     ctx.lineCap = 'round';
     for (let k = 0; k < M; k++) {
       const m = Math.abs((k / M) * 2 - 1) * (N - 1);   // mirrored left/right
@@ -515,19 +499,10 @@ function startVisualizer(top) {
     step(now);
     const hue0 = (now / 45) % 360;
 
-    if (bgOn) {
-      bgCtx.setTransform(1, 0, 0, 1, 0, 0);
-      bgCtx.clearRect(0, 0, bgW, bgH);
-      bgCtx.globalCompositeOperation = 'lighter';
-      paintBars(bgCtx, bgW, bgH, hue0, 0.5);
-      bgCtx.globalCompositeOperation = 'source-over';
-    }
-
     if (pageOpen) {
       pCtx.setTransform(1, 0, 0, 1, 0, 0);
       pCtx.clearRect(0, 0, pW, pH);
       pCtx.globalCompositeOperation = 'lighter';
-      paintBars(pCtx, pW, pH, hue0, 0.34);
       paintRadial(pCtx, pW, pH, hue0);
       pCtx.globalCompositeOperation = 'source-over';
       cover.style.animationPlayState = playing ? 'running' : 'paused';
@@ -538,14 +513,14 @@ function startVisualizer(top) {
 
   function loop(now) {
     raf = 0;
-    if (!bgOn && !pageOpen) return;
+    if (!pageOpen) return;
     if (now - last >= 20) { last = now; draw(now); }
     const idle = !playing && peak < 0.012 && beatPulse < 0.01;
     if (!idle && !document.hidden) raf = requestAnimationFrame(loop);
   }
 
   function kick() {
-    if (!raf && (bgOn || pageOpen) && !document.hidden) raf = requestAnimationFrame(loop);
+    if (!raf && pageOpen && !document.hidden) raf = requestAnimationFrame(loop);
   }
 
   /* ---------- open / close ---------- */
@@ -564,6 +539,7 @@ function startVisualizer(top) {
     pageOpen = false;
     page.classList.remove('open');
     btn.classList.remove('on');
+    kick();
   }
 
   function togglePage() { if (pageOpen) closePage(); else openPage(); }
@@ -572,20 +548,12 @@ function startVisualizer(top) {
   closeBtn.addEventListener('click', closePage);
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && pageOpen) { closePage(); return; }
-    if (e.ctrlKey && e.altKey) {
-      const k = String(e.key).toLowerCase();
-      if (k === 'v') togglePage();
-      if (k === 'b') {
-        bgOn = !bgOn;
-        try { localStorage.setItem('mg-viz-off', bgOn ? '0' : '1'); } catch (err) {}
-        bg.style.display = bgOn ? '' : 'none';
-        if (bgOn) kick();
-      }
-    }
+    if (e.ctrlKey && e.altKey && String(e.key).toLowerCase() === 'v') togglePage();
   });
 
-  resizeBg();
-  window.addEventListener('resize', () => { resizeBg(); if (pageOpen) placePage(); kick(); });
+  alignBtn();
+  setInterval(alignBtn, 1500);
+  window.addEventListener('resize', () => { alignBtn(); if (pageOpen) placePage(); kick(); });
   document.addEventListener('visibilitychange', kick);
 
   // hook into the player once Spicetify is ready
