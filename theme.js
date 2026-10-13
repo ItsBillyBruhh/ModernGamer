@@ -4,8 +4,6 @@
 
   // ---- settings you can edit ----
   const MG_VIZ_ENABLED = true;        // false = no visualizer
-  const MG_NAME = 'ItsBillyBruhh';    // neon text in the visualizer ('' = none)
-  const MG_NAME_Y = 0.8;              // vertical position of the name (0 = top, 1 = bottom)
 
 // Modern Gamer — finds Spotify's panels and player parts WITHOUT relying on
 // class names (Spotify's are randomized), then tags them with mg-* classes
@@ -223,34 +221,33 @@ function clearBars(root) {
 }
 
 /* ================= NEON VISUALIZER =================
-   Reacts to Spotify's own analysis of the playing track (beats, loudness,
-   pitch) in time with playback. It does NOT hear your speakers.
-   Tracks without analysis get a generated beat animation instead.
-   Toggle on/off: Ctrl + Alt + V                                         */
+   Two views, one engine:
+   1. a background layer behind the whole UI (Ctrl+Alt+B toggles it)
+   2. a Visualizer page over the main area, opened with the top-bar button
+      or Ctrl+Alt+V (Esc closes it): cover, song info, progress + radial bars.
+   It follows Spotify's analysis of the playing track (beats, loudness, pitch)
+   in time with playback; it does not hear your speakers. Tracks without
+   analysis get a generated beat animation.                                   */
 function startVisualizer(top) {
   if (!MG_VIZ_ENABLED || document.getElementById('mg-viz')) return;
 
-  const canvas = document.createElement('canvas');
-  canvas.id = 'mg-viz';
-  top.appendChild(canvas);
-  const ctx = canvas.getContext('2d');
-
-  const SCALE = 0.5;               // render at half resolution (fast, glow stays soft)
-  const N = 56;                    // number of bars
+  const N = 56;                          // bars
   const levels = new Float32Array(N);
   const target = new Float32Array(N);
   const cache = new Map();
-  let W = 2, H = 2, raf = 0, last = 0;
   let analysis = null, analysisUri = '';
   let playing = false, beatPulse = 0, loud = 0, peak = 0;
-  let enabled = true;
-  try { enabled = localStorage.getItem('mg-viz-off') !== '1'; } catch (e) {}
-  canvas.style.display = enabled ? '' : 'none';
+  let raf = 0, last = 0, lastKey = '';
+  let bgOn = true, pageOpen = false;
+  try { bgOn = localStorage.getItem('mg-viz-off') !== '1'; } catch (e) {}
 
   const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+  const fmt = (ms) => {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  };
 
-  // last index whose .start <= t
-  function findIdx(arr, t) {
+  function findIdx(arr, t) {             // last index whose .start <= t
     let lo = 0, hi = arr.length - 1, ans = 0;
     while (lo <= hi) {
       const mid = (lo + hi) >> 1;
@@ -259,18 +256,133 @@ function startVisualizer(top) {
     return ans;
   }
 
-  function resize() {
-    W = Math.max(2, Math.floor(window.innerWidth * SCALE));
-    H = Math.max(2, Math.floor(window.innerHeight * SCALE));
-    canvas.width = W;
-    canvas.height = H;
+  /* ---------- background canvas ---------- */
+  const bg = document.createElement('canvas');
+  bg.id = 'mg-viz';
+  top.appendChild(bg);
+  const bgCtx = bg.getContext('2d');
+  const BG_SCALE = 0.5;
+  let bgW = 2, bgH = 2;
+  bg.style.display = bgOn ? '' : 'none';
+
+  /* ---------- visualizer page ---------- */
+  const page = document.createElement('div');
+  page.id = 'mg-vizpage';
+  const pc = document.createElement('canvas');
+  const cover = document.createElement('img');
+  cover.className = 'mg-vp-cover';
+  const info = document.createElement('div');
+  info.className = 'mg-vp-info';
+  const title = document.createElement('div');
+  title.className = 'mg-vp-title';
+  const artist = document.createElement('div');
+  artist.className = 'mg-vp-artist';
+  const album = document.createElement('div');
+  album.className = 'mg-vp-album';
+  const prog = document.createElement('div');
+  prog.className = 'mg-vp-prog';
+  const tNow = document.createElement('span');
+  const bar = document.createElement('div');
+  bar.className = 'mg-vp-bar';
+  const fill = document.createElement('div');
+  fill.className = 'mg-vp-fill';
+  const tEnd = document.createElement('span');
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'mg-vp-close';
+  closeBtn.setAttribute('aria-label', 'Close visualizer');
+  closeBtn.textContent = '\u2715';
+  bar.appendChild(fill);
+  prog.appendChild(tNow); prog.appendChild(bar); prog.appendChild(tEnd);
+  info.appendChild(title); info.appendChild(artist); info.appendChild(album); info.appendChild(prog);
+  page.appendChild(pc); page.appendChild(cover); page.appendChild(info); page.appendChild(closeBtn);
+  top.appendChild(page);
+  const pCtx = pc.getContext('2d');
+  const P_SCALE = 0.6;
+  let pW = 2, pH = 2, pageR = 120, cw = 800, ch = 600;
+
+  // top-bar button
+  const btn = document.createElement('button');
+  btn.id = 'mg-viz-btn';
+  btn.setAttribute('aria-label', 'Visualizer');
+  btn.title = 'Visualizer (Ctrl+Alt+V)';
+  btn.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">'
+    + '<rect x="1" y="8" width="3" height="7" rx="1"/><rect x="6.5" y="1.5" width="3" height="13.5" rx="1"/>'
+    + '<rect x="12" y="5" width="3" height="10" rx="1"/></svg>';
+  top.appendChild(btn);
+
+  function placePage() {
+    const main = top.querySelector(':scope > .mg-main');
+    const r = main && main.getBoundingClientRect
+      ? main.getBoundingClientRect()
+      : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    cw = Math.max(200, Math.round(r.width));
+    ch = Math.max(200, Math.round(r.height));
+    page.style.left = r.left + 'px';
+    page.style.top = r.top + 'px';
+    page.style.width = cw + 'px';
+    page.style.height = ch + 'px';
+    pW = Math.max(2, Math.floor(cw * P_SCALE));
+    pH = Math.max(2, Math.floor(ch * P_SCALE));
+    pc.width = pW;
+    pc.height = pH;
+    pageR = Math.max(70, Math.min(150, ch * 0.17));
+    cover.style.width = cover.style.height = pageR * 2 + 'px';
+    cover.style.marginLeft = cover.style.marginTop = -pageR + 'px';
+    info.style.top = ch * 0.38 + pageR + 56 + 'px';
+  }
+
+  function resizeBg() {
+    bgW = Math.max(2, Math.floor(window.innerWidth * BG_SCALE));
+    bgH = Math.max(2, Math.floor(window.innerHeight * BG_SCALE));
+    bg.width = bgW;
+    bg.height = bgH;
+  }
+
+  /* ---------- track info ---------- */
+  function readTrack() {
+    const sp = window.Spicetify;
+    const d = sp && sp.Player && sp.Player.data;
+    const it = (d && (d.item || d.track)) || {};
+    const md = it.metadata || {};
+    const name = it.name || md.title || '';
+    const artists = Array.isArray(it.artists) && it.artists.length
+      ? it.artists.map((a) => a.name).join(', ')
+      : md.artist_name || '';
+    const albumName = (it.album && it.album.name) || md.album_title || '';
+    const img = document.querySelector('.mg-cimg');
+    let src = img && img.src ? img.src : '';
+    if (!src) {
+      const u = (it.images && it.images[0] && it.images[0].url) || md.image_xlarge_url || '';
+      src = u.indexOf('spotify:image:') === 0 ? 'https://i.scdn.co/image/' + u.slice(14) : u;
+    }
+    return { uri: it.uri || '', name, artists, albumName, src };
+  }
+
+  function updateInfo(force) {
+    const t = readTrack();
+    const key = t.uri + '|' + t.name + '|' + t.src;
+    if (!force && key === lastKey) return;
+    lastKey = key;
+    title.textContent = t.name;
+    artist.textContent = t.artists;
+    album.textContent = t.albumName;
+    if (t.src && cover.src !== t.src) cover.src = t.src;
+  }
+
+  function updateProgress() {
+    const sp = window.Spicetify;
+    if (!sp || !sp.Player) return;
+    const p = sp.Player.getProgress ? sp.Player.getProgress() : 0;
+    const dur = sp.Player.getDuration ? sp.Player.getDuration() : 0;
+    tNow.textContent = fmt(p);
+    tEnd.textContent = fmt(dur);
+    fill.style.width = dur > 0 ? clamp01(p / dur) * 100 + '%' : '0%';
   }
 
   async function loadAnalysis() {
     const sp = window.Spicetify;
     if (!sp || !sp.getAudioData) return;
-    const item = sp.Player && sp.Player.data && (sp.Player.data.item || sp.Player.data.track);
-    const uri = item && item.uri;
+    const uri = readTrack().uri;
     if (!uri || uri === analysisUri) return;
     analysisUri = uri;
     if (cache.has(uri)) { analysis = cache.get(uri); return; }
@@ -286,22 +398,19 @@ function startVisualizer(top) {
     }
   }
 
+  /* ---------- audio engine ---------- */
   function computeTargets(now) {
     const sp = window.Spicetify;
-    const prog = sp && sp.Player && sp.Player.getProgress ? sp.Player.getProgress() / 1000 : 0;
+    const progS = sp && sp.Player && sp.Player.getProgress ? sp.Player.getProgress() / 1000 : 0;
     let pulse = 0, level = 0;
-    target.fill(playing ? 0.03 : 0);   // paused: bars sink to nothing so the loop can stop
+    target.fill(playing ? 0.03 : 0);     // paused: bars sink to nothing so the loop can stop
 
-    if (!playing) {
-      beatPulse *= 0.9;
-      loud *= 0.9;
-      return;
-    }
+    if (!playing) { beatPulse *= 0.9; loud *= 0.9; return; }
 
     if (analysis) {
       const segs = analysis.segments;
-      const s = segs[findIdx(segs, prog)];
-      const into = prog - s.start;
+      const s = segs[findIdx(segs, progS)];
+      const into = progS - s.start;
       const pk = s.loudness_max_time || 0;
       const decay = clamp01((into - pk) / Math.max(s.duration - pk, 0.05));
       level = clamp01(((s.loudness_max || -30) + 50) / 50) * (1 - 0.3 * decay);
@@ -311,18 +420,17 @@ function startVisualizer(top) {
         const x = (i / (N - 1)) * 11;
         const a = Math.floor(x), b = Math.min(11, a + 1), f = x - a;
         const pv = (p[a] ?? 0.5) * (1 - f) + (p[b] ?? 0.5) * f;
-        const wob = 0.12 * Math.sin(i * 1.7 + prog * 9 + (tb[1] || 0) * 0.02);
+        const wob = 0.12 * Math.sin(i * 1.7 + progS * 9 + (tb[1] || 0) * 0.02);
         target[i] = clamp01(level * (0.35 + 0.75 * pv) + wob * level + 0.03);
       }
       const beats = analysis.beats;
       if (beats && beats.length) {
-        const bt = beats[findIdx(beats, prog)];
-        const since = prog - bt.start;
+        const bt = beats[findIdx(beats, progS)];
+        const since = progS - bt.start;
         pulse = since >= 0 ? Math.exp(-since * 7) * (0.5 + 0.5 * (bt.confidence ?? 1)) : 0;
       }
     } else {
-      // generated: steady 120 bpm pulse with moving bars
-      const ph = ((now / 1000) * 2) % 1;
+      const ph = ((now / 1000) * 2) % 1;  // generated: steady 120 bpm
       pulse = Math.exp(-ph * 6);
       level = 0.55 + 0.2 * Math.sin(now / 1700);
       for (let i = 0; i < N; i++) {
@@ -336,25 +444,21 @@ function startVisualizer(top) {
     for (let i = 0; i < N; i++) target[i] = clamp01(target[i] * (1 + 0.35 * pulse));
   }
 
-  function draw(now) {
+  function step(now) {
     const sp = window.Spicetify;
     playing = !!(sp && sp.Player && sp.Player.isPlaying && sp.Player.isPlaying());
     computeTargets(now);
-
     peak = 0;
     for (let i = 0; i < N; i++) {
       const t = target[i];
       levels[i] += (t - levels[i]) * (t > levels[i] ? 0.5 : 0.12);
       if (levels[i] > peak) peak = levels[i];
     }
+  }
 
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, W, H);
-    ctx.globalCompositeOperation = 'lighter';
-    const hue0 = (now / 45) % 360;
-
-    // ---- neon bars ----
-    const bw = W / N, maxH = H * 0.5;
+  /* ---------- painting ---------- */
+  function paintBars(ctx, W, H, hue0, heightFrac) {
+    const bw = W / N, maxH = H * heightFrac;
     for (let i = 0; i < N; i++) {
       const h = Math.max(3, levels[i] * maxH);
       const x = i * bw + bw * 0.5;
@@ -370,90 +474,131 @@ function startVisualizer(top) {
       ctx.fillRect(x - bw * 0.2, H - h - 3, bw * 0.4, 2);
     }
     ctx.shadowBlur = 0;
+  }
 
-    // ---- neon wave line ----
-    const baseY = H * 0.62;
-    const amp = H * (0.03 + 0.07 * loud);
-    const grad = ctx.createLinearGradient(0, 0, W, 0);
-    for (let s = 0; s <= 6; s++) grad.addColorStop(s / 6, `hsl(${(hue0 + s * 60) % 360},100%,60%)`);
-    ctx.beginPath();
-    for (let x = 0; x <= W; x += 6) {
-      const y = baseY
-        + Math.sin(x * 0.011 + now / 520) * amp
-        + Math.sin(x * 0.027 - now / 340) * amp * 0.5 * (0.4 + beatPulse);
-      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  function paintRadial(ctx, W, H, hue0) {
+    const M = 120;
+    const cx = W / 2, cy = H * 0.38;
+    const R = pageR * P_SCALE;
+    const r0 = R + 14 * P_SCALE;
+    const maxLen = Math.min(W, H) * 0.17;
+    ctx.lineCap = 'round';
+    for (let k = 0; k < M; k++) {
+      const m = Math.abs((k / M) * 2 - 1) * (N - 1);   // mirrored left/right
+      const i0 = Math.floor(m), i1 = Math.min(N - 1, i0 + 1), f = m - i0;
+      const v = levels[i0] * (1 - f) + levels[i1] * f;
+      const len = 4 * P_SCALE + v * maxLen * (1 + 0.4 * beatPulse);
+      const a = (k / M) * Math.PI * 2 - Math.PI / 2;
+      const cs = Math.cos(a), sn = Math.sin(a);
+      const hue = (hue0 + (k / M) * 360) % 360;
+      ctx.strokeStyle = `hsla(${hue},100%,62%,0.95)`;
+      ctx.shadowColor = `hsl(${hue},100%,60%)`;
+      ctx.shadowBlur = 10;
+      ctx.lineWidth = Math.max(2, 3.2 * P_SCALE);
+      ctx.beginPath();
+      ctx.moveTo(cx + cs * r0, cy + sn * r0);
+      ctx.lineTo(cx + cs * (r0 + len), cy + sn * (r0 + len));
+      ctx.stroke();
     }
-    ctx.strokeStyle = grad;
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = 7;
-    ctx.globalAlpha = 0.18;
-    ctx.stroke();
-    ctx.lineWidth = 2;
-    ctx.globalAlpha = 0.95;
+    // shock ring that expands on every beat
+    ctx.shadowBlur = 14;
     ctx.shadowColor = `hsl(${hue0},100%,60%)`;
-    ctx.shadowBlur = 10;
+    ctx.strokeStyle = `hsla(${hue0},100%,70%,${clamp01(beatPulse * 0.6)})`;
+    ctx.lineWidth = 2 * P_SCALE;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r0 + (1 - beatPulse) * maxLen * 1.3, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
+  }
 
-    // ---- your name in neon, pulsing on the beat ----
-    if (MG_NAME) {
-      const size = Math.min(W * 0.1, 140);
-      ctx.font = `800 ${size}px "Segoe UI", Inter, system-ui, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      if ('letterSpacing' in ctx) ctx.letterSpacing = `${size * 0.08}px`;
-      const a = clamp01(0.28 + 0.55 * beatPulse + 0.15 * loud);
-      ctx.save();
-      ctx.translate(W / 2, H * MG_NAME_Y);
-      const sc = 1 + beatPulse * 0.035;
-      ctx.scale(sc, sc);
-      ctx.lineJoin = 'round';
-      ctx.shadowColor = `hsl(${hue0},100%,60%)`;
-      ctx.shadowBlur = 24;
-      ctx.lineWidth = size * 0.06;
-      ctx.strokeStyle = `hsla(${hue0},100%,62%,${a})`;
-      ctx.strokeText(MG_NAME, 0, 0);
-      ctx.shadowBlur = 8;
-      ctx.lineWidth = size * 0.018;
-      ctx.strokeStyle = `hsla(${(hue0 + 40) % 360},100%,86%,${clamp01(a + 0.25)})`;
-      ctx.strokeText(MG_NAME, 0, 0);
-      ctx.restore();
-      ctx.shadowBlur = 0;
+  function draw(now) {
+    step(now);
+    const hue0 = (now / 45) % 360;
+
+    if (bgOn) {
+      bgCtx.setTransform(1, 0, 0, 1, 0, 0);
+      bgCtx.clearRect(0, 0, bgW, bgH);
+      bgCtx.globalCompositeOperation = 'lighter';
+      paintBars(bgCtx, bgW, bgH, hue0, 0.5);
+      bgCtx.globalCompositeOperation = 'source-over';
     }
-    ctx.globalCompositeOperation = 'source-over';
+
+    if (pageOpen) {
+      pCtx.setTransform(1, 0, 0, 1, 0, 0);
+      pCtx.clearRect(0, 0, pW, pH);
+      pCtx.globalCompositeOperation = 'lighter';
+      paintBars(pCtx, pW, pH, hue0, 0.34);
+      paintRadial(pCtx, pW, pH, hue0);
+      pCtx.globalCompositeOperation = 'source-over';
+      cover.style.animationPlayState = playing ? 'running' : 'paused';
+      updateInfo(false);
+      updateProgress();
+    }
   }
 
   function loop(now) {
     raf = 0;
-    if (!enabled) return;
+    if (!bgOn && !pageOpen) return;
     if (now - last >= 20) { last = now; draw(now); }
     const idle = !playing && peak < 0.012 && beatPulse < 0.01;
     if (!idle && !document.hidden) raf = requestAnimationFrame(loop);
   }
 
   function kick() {
-    if (!raf && enabled && !document.hidden) raf = requestAnimationFrame(loop);
+    if (!raf && (bgOn || pageOpen) && !document.hidden) raf = requestAnimationFrame(loop);
   }
 
-  resize();
-  window.addEventListener('resize', () => { resize(); kick(); });
-  document.addEventListener('visibilitychange', kick);
+  /* ---------- open / close ---------- */
+  function openPage() {
+    placePage();
+    updateInfo(true);
+    updateProgress();
+    pageOpen = true;
+    page.classList.add('open');
+    btn.classList.add('on');
+    loadAnalysis();
+    kick();
+  }
+
+  function closePage() {
+    pageOpen = false;
+    page.classList.remove('open');
+    btn.classList.remove('on');
+  }
+
+  function togglePage() { if (pageOpen) closePage(); else openPage(); }
+
+  btn.addEventListener('click', togglePage);
+  closeBtn.addEventListener('click', closePage);
   document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.altKey && String(e.key).toLowerCase() === 'v') {
-      enabled = !enabled;
-      try { localStorage.setItem('mg-viz-off', enabled ? '0' : '1'); } catch (err) {}
-      canvas.style.display = enabled ? '' : 'none';
-      if (enabled) kick();
+    if (e.key === 'Escape' && pageOpen) { closePage(); return; }
+    if (e.ctrlKey && e.altKey) {
+      const k = String(e.key).toLowerCase();
+      if (k === 'v') togglePage();
+      if (k === 'b') {
+        bgOn = !bgOn;
+        try { localStorage.setItem('mg-viz-off', bgOn ? '0' : '1'); } catch (err) {}
+        bg.style.display = bgOn ? '' : 'none';
+        if (bgOn) kick();
+      }
     }
   });
+
+  resizeBg();
+  window.addEventListener('resize', () => { resizeBg(); if (pageOpen) placePage(); kick(); });
+  document.addEventListener('visibilitychange', kick);
 
   // hook into the player once Spicetify is ready
   (function whenReady(tries) {
     const sp = window.Spicetify;
     if (sp && sp.Player && sp.Player.addEventListener) {
-      sp.Player.addEventListener('songchange', () => { loadAnalysis(); kick(); });
+      sp.Player.addEventListener('songchange', () => { loadAnalysis(); if (pageOpen) updateInfo(true); kick(); });
       sp.Player.addEventListener('onplaypause', kick);
+      try {
+        if (sp.Platform && sp.Platform.History && sp.Platform.History.listen) {
+          sp.Platform.History.listen(closePage);   // opening any other page closes ours
+        }
+      } catch (e) {}
       loadAnalysis();
       kick();
     } else if (tries > 0) {
