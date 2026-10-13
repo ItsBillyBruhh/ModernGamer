@@ -9,6 +9,7 @@ Dark gray, panel-free Spicetify theme with animated RGB accents.
 - Spinning RGB ring around the cover, flowing RGB progress/volume bars, RGB dividers and top-bar strip
 - Violet → cyan play buttons with a spinning RGB ring
 - Flat, panel-free layout on a dark gray canvas
+- Neon music visualizer behind the UI (bars + wave line + your name), synced to the song
 
 ## Install
 **Marketplace:** open Spicetify Marketplace → Themes → search "Modern Gamer" → Install.
@@ -20,6 +21,13 @@ Dark gray, panel-free Spicetify theme with animated RGB accents.
    spicetify config current_theme ModernGamer color_scheme ModernGamer inject_css 1 replace_colors 1
    spicetify apply
    ```
+
+## Visualizer
+- Follows Spotify's own analysis of the playing track (beats, loudness, pitch) in time with playback.
+  It does not listen to your speakers, so volume and EQ don't change it.
+- Tracks without analysis (some podcasts / local files) get a generated beat animation.
+- Toggle it with **Ctrl + Alt + V**.
+- Change the name or turn it off at the top of `theme.js` (`MG_NAME`, `MG_VIZ_ENABLED`).
 
 ## Notes
 - Keep the Now Playing panel open on the right — the player sits above it.
