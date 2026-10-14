@@ -41,15 +41,20 @@ function singleArea(el) {
   return parts.every((p) => p === parts[0]) ? parts[0] : '';
 }
 
+/* add a class only if it's missing (avoids needless DOM writes / observer loops) */
+function mgAdd(el, cls) {
+  if (el && !el.classList.contains(cls)) el.classList.add(cls);
+}
+
 /* ---------- the page grid ---------- */
 function tagPanels(top) {
-  top.classList.add('mg-top');
+  mgAdd(top, 'mg-top');
   for (const child of top.children) {
     const cls = MG_AREAS[singleArea(child)];
-    if (cls) child.classList.add(cls);
+    if (cls) mgAdd(child, cls);
     // the top nav wrapper spans "top-banner / 1 / global-nav / -1"
     if (/^top-banner\s*\/\s*1\s*\/\s*global-nav/.test(getComputedStyle(child).gridArea)) {
-      child.classList.add('mg-gn');
+      mgAdd(child, 'mg-gn');
     }
   }
 
@@ -82,27 +87,27 @@ function tagPlayer(bar) {
   if (container) {
     // every wrapper from the container up to the player root
     for (let n = container; n && n !== bar; n = n.parentElement) {
-      n.classList.add('mg-wrap');
+      mgAdd(n, 'mg-wrap');
     }
-    container.classList.add('mg-pc');
+    mgAdd(container, 'mg-pc');
     const L = childContaining(container, widget);
     const M = childContaining(container, play);
-    if (L) L.classList.add('mg-pl');
-    if (M) M.classList.add('mg-pm');
+    if (L) mgAdd(L, 'mg-pl');
+    if (M) mgAdd(M, 'mg-pm');
     [...container.children].forEach((k) => {
-      if (k !== L && k !== M) k.classList.add('mg-pr');
+      if (k !== L && k !== M) mgAdd(k, 'mg-pr');
     });
   }
 
   // cover: make every wrapper from the <img> up to the widget flexible
-  widget.classList.add('mg-widget');
-  const img = widget.querySelector('img');
-  if (img) {
-    img.classList.add('mg-cimg');
+  mgAdd(widget, 'mg-widget');
+  widget.querySelectorAll('img').forEach((img) => {
+    mgAdd(img, 'mg-cimg');
+    if (img.parentElement && img.parentElement !== widget) mgAdd(img.parentElement, 'mg-cwrap');
     for (let n = img.parentElement; n && n !== widget; n = n.parentElement) {
-      n.classList.add('mg-cchain');
+      mgAdd(n, 'mg-cchain');
     }
-  }
+  });
 
   // progress bar above the transport buttons
   const prog = bar.querySelector(
@@ -111,22 +116,22 @@ function tagPlayer(bar) {
   if (prog) {
     const pcm = ancestorContaining(play, prog, bar.parentElement);
     if (pcm && pcm !== play) {
-      pcm.classList.add('mg-pcm');
+      mgAdd(pcm, 'mg-pcm');
       const btns = childContaining(pcm, play);
       const pg = childContaining(pcm, prog);
       if (btns) {
-        btns.classList.add('mg-btns');
+        mgAdd(btns, 'mg-btns');
         // [left group] [play] [right group] -> centre the play button exactly
         const kids = [...btns.children];
         const pi = kids.findIndex((k) => k.contains(play));
-        if (pi >= 0) kids[pi].classList.add('mg-playwrap');
+        if (pi >= 0) mgAdd(kids[pi], 'mg-playwrap');
         if (kids.length === 3 && pi === 1) {
-          btns.classList.add('mg-btns3');
-          kids[0].classList.add('mg-bl');
-          kids[2].classList.add('mg-br');
+          mgAdd(btns, 'mg-btns3');
+          mgAdd(kids[0], 'mg-bl');
+          mgAdd(kids[2], 'mg-br');
         }
       }
-      if (pg && pg !== btns) pg.classList.add('mg-prog');
+      if (pg && pg !== btns) mgAdd(pg, 'mg-prog');
     }
   }
 
@@ -136,14 +141,14 @@ function tagPlayer(bar) {
     const right = vol.closest('.mg-pr');
     for (let n = vol; n && n !== right && n !== bar; n = n.parentElement) {
       if (n.parentElement && n.parentElement !== right) {
-        n.classList.add('mg-vol');
+        mgAdd(n, 'mg-vol');
       } else {
-        n.classList.add('mg-vol');
-        if (n.parentElement) n.parentElement.classList.add('mg-row');
+        mgAdd(n, 'mg-vol');
+        if (n.parentElement) mgAdd(n.parentElement, 'mg-row');
         break;
       }
     }
-    if (right && !right.querySelector('.mg-row')) right.classList.add('mg-row');
+    if (right && !right.querySelector('.mg-row')) mgAdd(right, 'mg-row');
   }
 
   tagFill(bar.querySelector('.mg-prog'));
@@ -161,7 +166,7 @@ function flatten(root) {
     const bg = cs.backgroundColor;
     if (bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent') continue;
     if (parseFloat(cs.borderTopLeftRadius) < 6) continue;
-    el.classList.add('mg-flat');
+    mgAdd(el, 'mg-flat');
   }
 }
 
@@ -185,7 +190,7 @@ function tagFill(scope) {
   if (!leaves.length) return;
   const max = Math.max(...leaves.map((x) => x[1]));
   if (max < 120) return;
-  leaves.forEach(([el, l]) => { if (l >= max * 0.9) el.classList.add('mg-fill'); });
+  leaves.forEach(([el, l]) => { if (l >= max * 0.9) mgAdd(el, 'mg-fill'); });
 }
 
 /* ---------- tinted header backdrops (random class names) ---------- */
@@ -200,7 +205,7 @@ function killBackdrops(root) {
     const clear = cs.backgroundColor === 'rgba(0, 0, 0, 0)' || cs.backgroundColor === 'transparent';
     if (clear && cs.backgroundImage === 'none') continue;
     if (el.childElementCount > 3) continue;   // real content containers have many children
-    el.classList.add('mg-bgkill');
+    mgAdd(el, 'mg-bgkill');
   }
 }
 
@@ -216,7 +221,7 @@ function clearBars(root) {
     const cs = getComputedStyle(el);
     const clear = cs.backgroundColor === 'rgba(0, 0, 0, 0)' || cs.backgroundColor === 'transparent';
     if (clear && cs.backgroundImage === 'none') continue;
-    el.classList.add('mg-bgkill');
+    mgAdd(el, 'mg-bgkill');
   }
 }
 
@@ -634,6 +639,16 @@ waitForElement([MG_TOP], ([top]) => {
   slowRefresh();
   new MutationObserver(() => { refreshSoon(); slowSoon(); }).observe(top, { childList: true, subtree: true });
 
+  // Spotify's re-renders can overwrite an element's class attribute and wipe our tags
+  // (the cover then loses its styling). Watch class changes around the panels/player and re-tag.
+  const reTag = debounce(() => { refs = tagPanels(top); tagPlayer(refs.bar); }, 80);
+  new MutationObserver((muts) => {
+    for (const m of muts) {
+      const t = m.target;
+      if (t === top || t.parentElement === top || (t.closest && t.closest('.mg-npb'))) { reTag(); break; }
+    }
+  }).observe(top, { attributes: true, attributeFilter: ['class'], subtree: true });
+
   // Spotify mounts things over time; keep retrying for a while
   let tries = 0;
   const retry = setInterval(() => {
@@ -645,9 +660,8 @@ waitForElement([MG_TOP], ([top]) => {
   // spin the cover while music plays, pause when paused
   waitForElement(['[data-testid="control-button-playpause"]'], ([btn]) => {
     const update = () => {
-      const img = document.querySelector('.mg-cimg');
-      if (!img) return;
-      img.classList.toggle('running-animation', btn.getAttribute('aria-label') === 'Pause');
+      const on = btn.getAttribute('aria-label') === 'Pause';
+      document.querySelectorAll('.mg-cimg').forEach((img) => img.classList.toggle('running-animation', on));
     };
     new MutationObserver(update).observe(btn, {
       attributes: true,

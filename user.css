@@ -209,6 +209,10 @@ div:has(> .Root__lyrics-cinema) {
   animation-play-state: paused;
 }
 
+/* the cover's direct parent: any images in it overlap in one cell */
+.mg-cwrap { display: grid !important; place-items: center; }
+.mg-cwrap > .mg-cimg { grid-area: 1 / 1; }
+
 .running-animation { animation-play-state: running !important; }
 
 @keyframes mg-spin {
@@ -487,7 +491,7 @@ input[type="range"] { accent-color: var(--mg-blue); }
 
 /* spinning RGB ring around the cover */
 .mg-widget > .mg-cchain { position: relative; }
-.mg-widget > .mg-cchain::before {
+.mg-widget > .mg-cchain:has(.mg-cimg)::before {   /* ring only exists while the cover is styled */
   content: "";
   position: absolute;
   left: 50%; top: 50%;
@@ -562,7 +566,7 @@ input[type="range"] { accent-color: var(--mg-blue); }
 
 @media (prefers-reduced-motion: reduce) {
   .mg-gn::after, .mg-ls::after, .mg-main::after,
-  .mg-widget > .mg-cchain::before, .mg-fill,
+  .mg-widget > .mg-cchain:has(.mg-cimg)::before, .mg-fill,
   .mg-pm [data-testid="control-button-playpause"], .main-playButton-PlayButton,
   [data-testid="play-button"], .main-card-PlayButtonContainer button {
     animation: none !important;
