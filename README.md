@@ -9,7 +9,7 @@ Dark gray, panel-free Spicetify theme with animated RGB accents.
 - Spinning RGB ring around the cover, flowing RGB progress/volume bars, RGB dividers and top-bar strip
 - Violet → cyan play buttons with a spinning RGB ring
 - Flat, panel-free layout on a dark gray canvas
-- Neon music visualizer: a page with song info + radial bars,, synced to the song
+- Neon music visualizer: a page with song info + radial bars, synced to the song
 
 ## Install
 **Marketplace:** open Spicetify Marketplace → Themes → search "Modern Gamer" → Install.
@@ -23,6 +23,9 @@ Dark gray, panel-free Spicetify theme with animated RGB accents.
    ```
 
 ## Visualizer
+
+![Visualizer page](https://i.ibb.co/qMqBJXzF/image.png)
+
 - **Visualizer page:** click the bars button in the top bar (or press **Ctrl + Alt + V**) to open a page over the main area with the cover, song info, progress bar and a neon radial visualizer. **Esc** or the ✕ closes it.
 - It follows Spotify's own analysis of the playing track (beats, loudness, pitch) in time with playback. It does not listen to your speakers, so volume and EQ don't change it.
 - Tracks without analysis (some podcasts / local files) get a generated beat animation.
