@@ -226,6 +226,38 @@ function clearBars(root) {
    It follows Spotify's analysis of the playing track (beats, loudness,
    pitch) in time with playback; it does not hear your speakers. Tracks
    without analysis get a generated beat animation.                      */
+const MG_VIZ_CSS = `
+#mg-viz-btn{position:fixed;top:12px;right:300px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;border-radius:50%;border:0;background:transparent;color:#B3B3C0;cursor:pointer;z-index:60;-webkit-app-region:no-drag;transition:color .15s ease,background-color .15s ease,box-shadow .15s ease}
+#mg-viz-btn:hover{color:#fff;background:rgba(255,255,255,.10)}
+#mg-viz-btn.on{color:#fff;background:linear-gradient(135deg,#7C4DFF,#00E5FF);box-shadow:0 0 14px rgba(124,77,255,.6)}
+#mg-vizpage{position:fixed;overflow:hidden;margin:0;padding:0;z-index:30;background:#141416;color:#fff}
+#mg-vizpage canvas{position:absolute;inset:0;width:100%;height:100%}
+#mg-vizpage .mg-vp-cover{position:absolute;left:50%;border-radius:50%;object-fit:cover;background:#141416;box-shadow:0 0 0 3px #141416,0 0 0 8px rgba(124,77,255,.55),0 0 60px rgba(124,77,255,.45);animation:mgv-spin 28s linear infinite;animation-play-state:paused}
+#mg-vizpage .mg-vp-info{position:absolute;left:50%;transform:translateX(-50%);width:min(560px,80%);text-align:center}
+#mg-vizpage .mg-vp-title{font-size:36px;font-weight:800;letter-spacing:-.01em;line-height:1.15;color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.85)}
+#mg-vizpage .mg-vp-artist{font-size:19px;font-weight:600;margin-top:8px;color:#E4E4EE;text-shadow:0 1px 12px rgba(0,0,0,.85)}
+#mg-vizpage .mg-vp-album{font-size:14px;margin-top:4px;color:#BDBDCB;text-shadow:0 1px 10px rgba(0,0,0,.85)}
+#mg-vizpage .mg-vp-prog{display:flex;align-items:center;gap:12px;margin-top:24px;font-size:13px;font-weight:600;color:#D6D6E2;font-variant-numeric:tabular-nums}
+#mg-vizpage .mg-vp-bar{flex:1;height:6px;border-radius:999px;background:rgba(255,255,255,.24);overflow:hidden}
+#mg-vizpage .mg-vp-fill{height:100%;width:0;background:linear-gradient(90deg,#FF2D55,#FF9500,#FFE600,#2BFF88,#00E5FF,#7C4DFF,#FF2BD6,#FF2D55);background-size:200% 100%;animation:mgv-flow 5s linear infinite}
+#mg-vizpage .mg-vp-close{position:absolute;top:14px;right:16px;width:34px;height:34px;padding:0;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#F2F2F5;font-size:14px;cursor:pointer;z-index:2}
+#mg-vizpage .mg-vp-close:hover{color:#00E5FF;border-color:#00E5FF}
+@keyframes mgv-spin{to{transform:rotate(360deg)}}
+@keyframes mgv-flow{from{background-position:0% 0}to{background-position:200% 0}}
+@media (prefers-reduced-motion:reduce){#mg-vizpage .mg-vp-cover,#mg-vizpage .mg-vp-fill{animation:none!important}}
+`;
+
+// The visualizer styles itself, so it can never show up unstyled (or leak into
+// the page grid) even if an older user.css is still cached by Spicetify/Marketplace.
+function mgInjectVizStyle(host) {
+  if (document.getElementById('mg-viz-style')) return;
+  const st = document.createElement('style');
+  st.id = 'mg-viz-style';
+  st.textContent = MG_VIZ_CSS;
+  const where = [document.head, document.documentElement, host].find((h) => h && h.appendChild);
+  if (where) where.appendChild(st);
+}
+
 function startVisualizer(top) {
   if (!MG_VIZ_ENABLED || document.getElementById('mg-vizpage')) return;
 
@@ -255,8 +287,10 @@ function startVisualizer(top) {
   }
 
   /* ---------- visualizer page ---------- */
+  mgInjectVizStyle(top);
   const page = document.createElement('div');
   page.id = 'mg-vizpage';
+  page.style.cssText = 'position:fixed;display:none;';   // out of the page grid even before any CSS loads
   const pc = document.createElement('canvas');
   const cover = document.createElement('img');
   cover.className = 'mg-vp-cover';
@@ -292,6 +326,7 @@ function startVisualizer(top) {
   // top-bar button
   const btn = document.createElement('button');
   btn.id = 'mg-viz-btn';
+  btn.style.cssText = 'position:fixed;top:12px;right:300px;width:32px;height:32px;';
   btn.setAttribute('aria-label', 'Visualizer');
   btn.title = 'Visualizer (Ctrl+Alt+V)';
   btn.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">'
@@ -529,6 +564,7 @@ function startVisualizer(top) {
     updateInfo(true);
     updateProgress();
     pageOpen = true;
+    page.style.display = 'block';
     page.classList.add('open');
     btn.classList.add('on');
     loadAnalysis();
@@ -537,6 +573,7 @@ function startVisualizer(top) {
 
   function closePage() {
     pageOpen = false;
+    page.style.display = 'none';
     page.classList.remove('open');
     btn.classList.remove('on');
     kick();

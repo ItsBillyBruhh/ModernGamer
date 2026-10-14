@@ -26,7 +26,7 @@ Dark gray, panel-free Spicetify theme with animated RGB accents.
 - **Visualizer page:** click the bars button in the top bar (or press **Ctrl + Alt + V**) to open a page over the main area with the cover, song info, progress bar and a neon radial visualizer. **Esc** or the ✕ closes it.
 - It follows Spotify's own analysis of the playing track (beats, loudness, pitch) in time with playback. It does not listen to your speakers, so volume and EQ don't change it.
 - Tracks without analysis (some podcasts / local files) get a generated beat animation.
-- Turn the visualizer off completely with `MG_VIZ_ENABLED` at the top of `theme.js`. If the top-bar button overlaps an icon, change `--mg-btn-right` in `user.css`.
+- Turn the visualizer off completely with `MG_VIZ_ENABLED` at the top of `theme.js`. The button lines itself up with the bell icon automatically, and its styling is built into `theme.js`.
 
 ## Notes
 - Keep the Now Playing panel open on the right — the player sits above it.
