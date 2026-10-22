@@ -308,6 +308,10 @@ function mgApply(p, save) {
   const loop = p.stops.concat(p.stops[0]);        // loops back to the first color -> seamless flow
   p.rgb = loop.map(mgHex);
   MG_PAL = p;
+  if (!document.documentElement) {       // script ran before the page exists: apply once it does
+    document.addEventListener('DOMContentLoaded', () => mgApply(p, false), { once: true });
+    return;
+  }
   const st = document.documentElement.style;
   const r1 = mgHex(p.a[0]).join(', ');
   const r2 = mgHex(p.a[1]).join(', ');
@@ -355,11 +359,78 @@ function mgSample(t) {
   return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
 }
 
+/* Every rainbow spot in the theme, re-pointed at the active palette. Injected by the script
+   (with !important) so it works even if an older user.css is still cached by Spicetify/Marketplace. */
+const MG_THEME_COLOR_CSS = `
+html:root{--mg-rgb:linear-gradient(90deg,var(--mg-stops)) !important;--mg-rgb-v:linear-gradient(180deg,var(--mg-stops)) !important}
+@property --mg-a{syntax:"<angle>";inherits:false;initial-value:0deg}
+@keyframes mg-angle{to{--mg-a:360deg}}
+html body .mg-widget > .mg-cchain:not(:has(.mg-cimg))::before{display:none !important}
+html body .mg-widget > .mg-cchain:has(.mg-cimg)::before{background:conic-gradient(from 0deg,var(--mg-stops)) !important;box-shadow:0 0 36px rgba(var(--mg-a1-rgb),.6) !important}
+html body .mg-pm [data-testid="control-button-playpause"],
+html body .main-playButton-PlayButton,
+html body [data-testid="play-button"],
+html body .main-card-PlayButtonContainer button{
+  background:linear-gradient(135deg,var(--mg-a1),var(--mg-a2)) padding-box,conic-gradient(from var(--mg-a),var(--mg-stops)) border-box !important;
+  box-shadow:0 6px 24px rgba(var(--mg-a1-rgb),.55) !important}
+html body .mg-gn::after{box-shadow:0 0 12px rgba(var(--mg-a1-rgb),.6) !important}
+html body .main-trackList-trackListRow:hover,html body .main-trackList-trackListRow:focus-within{box-shadow:inset 3px 0 0 var(--mg-a2) !important}
+html body .main-trackList-trackListRow[aria-selected="true"]{box-shadow:inset 3px 0 0 var(--mg-a1) !important}
+html body .main-card-card:hover{box-shadow:0 0 0 1px rgba(var(--mg-a2-rgb),.55),0 12px 40px rgba(var(--mg-a1-rgb),.35) !important}
+`;
+
+function mgInjectThemeColors() {
+  if (document.getElementById('mg-theme-colors')) return;
+  const st = document.createElement('style');
+  st.id = 'mg-theme-colors';
+  st.textContent = MG_THEME_COLOR_CSS;
+  const where = [document.head, document.documentElement].find((h) => h && h.appendChild);
+  if (where) where.appendChild(st);
+}
+
 function mgInitPalette() {
   const id = mgLoadId();
   mgApply(MG_PALETTES.find((x) => x.id === id) || MG_PALETTES[0], false);
+  mgInjectThemeColors();
 }
 mgInitPalette();           // restore the saved palette immediately, before anything is drawn
+
+/* ---------- palette-driven rules, injected by the script ----------
+   user.css may be an older cached copy with the rainbow hard-coded. These rules are
+   injected with the script, so they always win and every rainbow spot follows the palette. */
+const MG_THEME_CSS = `
+@property --mg-a{syntax:"<angle>";inherits:false;initial-value:0deg}
+@keyframes mg-angle{to{--mg-a:360deg}}
+@keyframes mg-flow{from{background-position:0% 0}to{background-position:200% 0}}
+@keyframes mg-flowv{from{background-position:0 0%}to{background-position:0 200%}}
+html:root{--mg-rgb:linear-gradient(90deg,var(--mg-stops)) !important;--mg-rgb-v:linear-gradient(180deg,var(--mg-stops)) !important}
+html body .mg-widget > .mg-cchain::before{background:conic-gradient(from 0deg,var(--mg-stops)) !important;box-shadow:0 0 36px rgba(var(--mg-a1-rgb),.6) !important}
+html body .mg-widget > .mg-cchain:has(.mg-cimg)::before{background:conic-gradient(from 0deg,var(--mg-stops)) !important;box-shadow:0 0 36px rgba(var(--mg-a1-rgb),.6) !important}
+html body .mg-pm [data-testid="control-button-playpause"],
+html body .main-playButton-PlayButton,
+html body [data-testid="play-button"],
+html body .main-card-PlayButtonContainer button{box-sizing:border-box !important;border:3px solid transparent !important;background:linear-gradient(135deg,var(--mg-a1),var(--mg-a2)) padding-box,conic-gradient(from var(--mg-a),var(--mg-stops)) border-box !important;animation:mg-angle 4s linear infinite !important;box-shadow:0 6px 24px rgba(var(--mg-a1-rgb),.55) !important;filter:none !important}
+html body .mg-fill{background-color:transparent !important;background-image:var(--mg-rgb) !important;background-size:200% 100% !important}
+html body .mg-gn::after{background:var(--mg-rgb) !important;background-size:200% 100% !important;box-shadow:0 0 12px rgba(var(--mg-a1-rgb),.6) !important}
+html body .mg-ls::after,html body .mg-main::after{background:var(--mg-rgb-v) !important;background-size:100% 200% !important}
+html body .main-trackList-trackListRow:hover,html body .main-trackList-trackListRow:focus-within{box-shadow:inset 3px 0 0 var(--mg-a2) !important;background-color:rgba(var(--mg-a1-rgb),.10) !important}
+html body .main-trackList-trackListRow[aria-selected="true"]{box-shadow:inset 3px 0 0 var(--mg-a1) !important;background-color:rgba(var(--mg-a1-rgb),.20) !important}
+html body .main-card-card:hover{box-shadow:0 0 0 1px rgba(var(--mg-a2-rgb),.55),0 12px 40px rgba(var(--mg-a1-rgb),.35) !important}
+html body input:focus{outline-color:rgba(var(--mg-a2-rgb),.72) !important}
+html body ::-webkit-scrollbar-thumb:hover{background:rgba(var(--mg-a2-rgb),.6) !important}
+`;
+
+function mgInjectThemeCss() {
+  if (document.getElementById('mg-pal-theme-css')) return;
+  const st = document.createElement('style');
+  st.id = 'mg-pal-theme-css';
+  st.textContent = MG_THEME_CSS;
+  const host = [document.head, document.documentElement].find((h) => h && h.appendChild);
+  if (host) host.appendChild(st);
+  else document.addEventListener('DOMContentLoaded', mgInjectThemeCss, { once: true });
+}
+mgInjectThemeCss();         // ...and the rules that make every rainbow spot follow it
+
 
 /* ---------- line the top-bar buttons up with the bell / avatar row ---------- */
 function mgAlignButtons(top) {
@@ -417,6 +488,7 @@ const MG_PAL_CSS = `
 
 function startPalette(top) {
   if (!MG_COLORS_ENABLED || document.getElementById('mg-palpage')) return;
+  mgInjectThemeCss();
 
   const style = document.createElement('style');
   style.id = 'mg-pal-style';

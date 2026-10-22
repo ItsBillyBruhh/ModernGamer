@@ -35,6 +35,7 @@ Dark gray, panel-free Spicetify theme with animated RGB accents.
 - Click the palette button in the top bar (or press **Ctrl + Alt + C**) to open the Colors page. **Esc** or the ✕ closes it.
 - Pick any gradient or solid color. It replaces the rainbow everywhere: the top-bar line, dividers, cover ring, play-button ring, progress bars and the visualizer. Spotify's own accent color (selected items, buttons) follows it too.
 - **Your choice is saved** and restored every time Spotify starts. "Reset to rainbow" brings the default back.
+- The color rules are built into `theme.js`, so the palette applies everywhere even if an older copy of `user.css` is still cached.
 - Turn the Colors page off with `MG_COLORS_ENABLED` at the top of `theme.js`.
 
 ## Notes
