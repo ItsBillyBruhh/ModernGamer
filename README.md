@@ -31,6 +31,12 @@ Dark gray, panel-free Spicetify theme with animated RGB accents.
 - Tracks without analysis (some podcasts / local files) get a generated beat animation.
 - Turn the visualizer off completely with `MG_VIZ_ENABLED` at the top of `theme.js`. The button lines itself up with the bell icon automatically, and its styling is built into `theme.js`.
 
+## Colors
+- Click the palette button in the top bar (or press **Ctrl + Alt + C**) to open the Colors page. **Esc** or the ✕ closes it.
+- Pick any gradient or solid color. It replaces the rainbow everywhere: the top-bar line, dividers, cover ring, play-button ring, progress bars and the visualizer. Spotify's own accent color (selected items, buttons) follows it too.
+- **Your choice is saved** and restored every time Spotify starts. "Reset to rainbow" brings the default back.
+- Turn the Colors page off with `MG_COLORS_ENABLED` at the top of `theme.js`.
+
 ## Notes
 - Keep the Now Playing panel open on the right — the player sits above it.
 - Needs `theme.js` to be loaded (the layout depends on it). Marketplace loads it automatically.

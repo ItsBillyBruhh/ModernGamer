@@ -6,11 +6,16 @@
 */
 
 :root {
+  --mg-stops: #FF2D55, #FF9500, #FFE600, #2BFF88, #00E5FF, #7C4DFF, #FF2BD6, #FF2D55;
+  --mg-a1: #7C4DFF;
+  --mg-a2: #00E5FF;
+  --mg-a1-rgb: 124, 77, 255;
+  --mg-a2-rgb: 0, 229, 255;
   --mg-blue: #7C4DFF;
   --mg-blue-bright: #00E5FF;
   --mg-line: rgba(255, 255, 255, .08);
-  --mg-hover: rgba(124, 77, 255, .10);
-  --mg-selected: rgba(124, 77, 255, .20);
+  --mg-hover: rgba(var(--mg-a1-rgb), .10);
+  --mg-selected: rgba(var(--mg-a1-rgb), .20);
   --mg-radius: 14px;
 }
 
@@ -310,7 +315,7 @@ div:has(> .Root__lyrics-cinema) {
   border-radius: 50% !important;
   background-color: var(--spice-button) !important;
   color: #fff !important;
-  box-shadow: 0 6px 22px rgba(124, 77, 255, .55);
+  box-shadow: 0 6px 22px rgba(var(--mg-a1-rgb), .55);
   transition: transform .15s ease, background-color .15s ease;
 }
 
@@ -383,7 +388,7 @@ div:has(> .Root__lyrics-cinema) {
   border-radius: 50% !important;
   background-color: var(--spice-button) !important;
   color: #fff !important;
-  box-shadow: 0 6px 22px rgba(124, 77, 255, .45);
+  box-shadow: 0 6px 22px rgba(var(--mg-a1-rgb), .45);
   transition: transform .15s ease, background-color .15s ease;
 }
 
@@ -415,15 +420,15 @@ div:has(> .Root__lyrics-cinema) {
 }
 
 input:focus {
-  outline: 1px solid rgba(124, 77, 255, .72) !important;
-  box-shadow: 0 0 0 3px rgba(124, 77, 255, .14) !important;
+  outline: 1px solid rgba(var(--mg-a1-rgb), .72) !important;
+  box-shadow: 0 0 0 3px rgba(var(--mg-a1-rgb), .14) !important;
 }
 
 input[type="range"] { accent-color: var(--mg-blue); }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .22); border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0, 229, 255, .6); }
+::-webkit-scrollbar-thumb:hover { background: rgba(var(--mg-a2-rgb), .6); }
 ::-webkit-scrollbar-track { background: transparent; }
 [class*="os-scrollbar"] [class*="os-scrollbar-handle"] {
   background: rgba(255, 255, 255, .22) !important;
@@ -435,8 +440,8 @@ input[type="range"] { accent-color: var(--mg-blue); }
    6. RGB LAYER  (everything animated lives here)
    =============================================================== */
 :root {
-  --mg-rgb:   linear-gradient(90deg,  #FF2D55, #FF9500, #FFE600, #2BFF88, #00E5FF, #7C4DFF, #FF2BD6, #FF2D55);
-  --mg-rgb-v: linear-gradient(180deg, #FF2D55, #FF9500, #FFE600, #2BFF88, #00E5FF, #7C4DFF, #FF2BD6, #FF2D55);
+  --mg-rgb:   linear-gradient(90deg,  var(--mg-stops));
+  --mg-rgb-v: linear-gradient(180deg, var(--mg-stops));
 }
 
 @keyframes mg-flow  { from { background-position: 0% 0; } to { background-position: 200% 0; } }
@@ -461,7 +466,7 @@ input[type="range"] { accent-color: var(--mg-blue); }
   background: var(--mg-rgb);
   background-size: 200% 100%;
   animation: mg-flow 6s linear infinite;
-  box-shadow: 0 0 12px rgba(124, 77, 255, .6);
+  box-shadow: 0 0 12px rgba(var(--mg-a1-rgb), .6);
   pointer-events: none;
   z-index: 6;
 }
@@ -497,8 +502,8 @@ input[type="range"] { accent-color: var(--mg-blue); }
   left: 50%; top: 50%;
   width: 220px; height: 220px;
   border-radius: 50%;
-  background: conic-gradient(from 0deg, #FF2D55, #FF9500, #FFE600, #2BFF88, #00E5FF, #7C4DFF, #FF2BD6, #FF2D55);
-  box-shadow: 0 0 36px rgba(124, 77, 255, .6);
+  background: conic-gradient(from 0deg, var(--mg-stops));
+  box-shadow: 0 0 36px rgba(var(--mg-a1-rgb), .6);
   animation: mg-ring 5s linear infinite;
   z-index: 0;
 }
@@ -522,10 +527,10 @@ input[type="range"] { accent-color: var(--mg-blue); }
   box-sizing: border-box !important;
   border: 3px solid transparent !important;
   background:
-    linear-gradient(135deg, #7C4DFF, #00E5FF) padding-box,
-    conic-gradient(from var(--mg-a), #FF2D55, #FF9500, #FFE600, #2BFF88, #00E5FF, #7C4DFF, #FF2BD6, #FF2D55) border-box !important;
+    linear-gradient(135deg, var(--mg-a1), var(--mg-a2)) padding-box,
+    conic-gradient(from var(--mg-a), var(--mg-stops)) border-box !important;
   animation: mg-angle 4s linear infinite !important;
-  box-shadow: 0 6px 24px rgba(124, 77, 255, .55) !important;
+  box-shadow: 0 6px 24px rgba(var(--mg-a1-rgb), .55) !important;
   filter: none !important;
   border-radius: 50% !important;
 }
@@ -549,13 +554,13 @@ input[type="range"] { accent-color: var(--mg-blue); }
 /* neon edge on hovered / selected rows and cards */
 .main-trackList-trackListRow:hover,
 .main-trackList-trackListRow:focus-within {
-  box-shadow: inset 3px 0 0 #00E5FF;
+  box-shadow: inset 3px 0 0 var(--mg-a2);
 }
 .main-trackList-trackListRow[aria-selected="true"] {
-  box-shadow: inset 3px 0 0 #FF2BD6;
+  box-shadow: inset 3px 0 0 var(--mg-a1);
 }
 .main-card-card:hover {
-  box-shadow: 0 0 0 1px rgba(0, 229, 255, .55), 0 12px 40px rgba(124, 77, 255, .35);
+  box-shadow: 0 0 0 1px rgba(var(--mg-a2-rgb), .55), 0 12px 40px rgba(var(--mg-a1-rgb), .35);
 }
 
 /* the tinted gray/colored backdrops Spotify puts behind page headers */
@@ -583,7 +588,7 @@ input[type="range"] { accent-color: var(--mg-blue); }
 
 .main-buttons-button.main-button-primary,
 .main-button-primary {
-  background: linear-gradient(135deg, #7C4DFF, #00E5FF) !important;
+  background: linear-gradient(135deg, var(--mg-a1), var(--mg-a2)) !important;
   color: #fff !important;
   border: 0 !important;
 }

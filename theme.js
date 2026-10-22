@@ -4,6 +4,7 @@
 
   // ---- settings you can edit ----
   const MG_VIZ_ENABLED = true;        // false = no visualizer
+  const MG_COLORS_ENABLED = true;     // false = no Colors page (the rainbow stays)
 
 // Modern Gamer — finds Spotify's panels and player parts WITHOUT relying on
 // class names (Spotify's are randomized), then tags them with mg-* classes
@@ -225,6 +226,328 @@ function clearBars(root) {
   }
 }
 
+/* ================= COLORS: palettes + shared helpers =================
+   The rainbow used all over the theme (top bar line, dividers, cover ring,
+   play-button ring, progress bars, visualizer) is ONE active palette.
+   The Colors page swaps it for any gradient or solid color.            */
+
+const MG_PAGES = {};      // open/close handles, so only one page is open at a time
+
+/* ---------- small color helpers ---------- */
+function mgHex(h) {
+  const n = parseInt(h.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function mgToHex(r, g, b) {
+  return '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+function mgLighten(h) {
+  const [r, g, b] = mgHex(h);
+  return mgToHex(r + (255 - r) * 0.3, g + (255 - g) * 0.3, b + (255 - b) * 0.3);
+}
+const mgSlug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+/* ---------- the palettes: [name, colors..., [accent 1, accent 2]] ---------- */
+const MG_GRADIENTS = [
+  ['Rainbow',        ['#FF2D55', '#FF9500', '#FFE600', '#2BFF88', '#00E5FF', '#7C4DFF', '#FF2BD6'], ['#7C4DFF', '#00E5FF']],
+  ['Neon Nights',    ['#FF00C8', '#7C4DFF', '#00E5FF'], ['#FF00C8', '#00E5FF']],
+  ['Sunset',         ['#FF512F', '#F09819', '#FFD452'], ['#FF512F', '#FFD452']],
+  ['Ocean',          ['#00C6FF', '#0072FF', '#5B2EFF'], ['#0072FF', '#00C6FF']],
+  ['Aurora',         ['#00FFA3', '#00E5FF', '#7C4DFF', '#FF2BD6'], ['#7C4DFF', '#00FFA3']],
+  ['Cyberpunk',      ['#FFEE00', '#FF2A6D', '#05D9E8'], ['#FF2A6D', '#05D9E8']],
+  ['Vaporwave',      ['#FF71CE', '#B967FF', '#01CDFE', '#05FFA1'], ['#B967FF', '#01CDFE']],
+  ['Lava',           ['#FF0000', '#FF5A00', '#FFC400'], ['#FF5A00', '#FFC400']],
+  ['Toxic',          ['#B6FF00', '#00FF85', '#00B3FF'], ['#00FF85', '#B6FF00']],
+  ['Ice',            ['#E0F7FF', '#7DD3FC', '#38BDF8', '#818CF8'], ['#38BDF8', '#818CF8']],
+  ['Candy',          ['#FF9A9E', '#FBC2EB', '#A6C1EE'], ['#FF9A9E', '#A6C1EE']],
+  ['Forest',         ['#0F9B0F', '#52C234', '#B8E986'], ['#52C234', '#B8E986']],
+  ['Galaxy',         ['#4B2BFF', '#9D4EDD', '#FF2BD6', '#00E5FF'], ['#9D4EDD', '#00E5FF']],
+  ['Inferno',        ['#FFE600', '#FF8A00', '#FF2D55', '#7A00FF'], ['#FF8A00', '#FF2D55']],
+  ['Mint',           ['#00F5A0', '#00D9F5'], ['#00F5A0', '#00D9F5']],
+  ['Peach',          ['#FFB88C', '#FF6B9D'], ['#FF6B9D', '#FFB88C']],
+  ['Miami',          ['#FF2E97', '#00F0FF'], ['#FF2E97', '#00F0FF']],
+  ['Synthwave',      ['#F72585', '#7209B7', '#3A0CA3', '#4CC9F0'], ['#F72585', '#4CC9F0']],
+  ['Matrix',         ['#00FF41', '#00B82E', '#B6FFB6'], ['#00FF41', '#B6FFB6']],
+  ['Gold',           ['#F7971E', '#FFD200', '#FFF3B0'], ['#F7971E', '#FFD200']],
+  ['Rose Gold',      ['#FFC3A0', '#FFAFBD', '#FF6F91'], ['#FF6F91', '#FFC3A0']],
+  ['Steel',          ['#8EA7BF', '#C9D6E3', '#5C7A99'], ['#8EA7BF', '#C9D6E3']],
+  ['Blood Moon',     ['#FF0844', '#FF3D00', '#B3000F'], ['#FF0844', '#FF3D00']],
+  ['Deep Space',     ['#00D2FF', '#3A47D5', '#8E2DE2'], ['#8E2DE2', '#00D2FF']],
+  ['Tropical',       ['#00F260', '#0575E6', '#FFE000'], ['#00F260', '#0575E6']],
+  ['Lemonade',       ['#F9D423', '#FF4E50'], ['#F9D423', '#FF4E50']],
+  ['Berry',          ['#8E2DE2', '#FF2BD6', '#FF6A88'], ['#FF2BD6', '#FF6A88']],
+  ['Emerald Sea',    ['#11998E', '#38EF7D', '#00B4DB'], ['#38EF7D', '#00B4DB']],
+  ['Cotton Candy',   ['#FFC0E3', '#C0E3FF', '#E3C0FF'], ['#FFC0E3', '#C0E3FF']],
+  ['Fire & Ice',     ['#FF3D00', '#FF8A00', '#00E5FF', '#2979FF'], ['#FF3D00', '#00E5FF']],
+  ['Northern Lights', ['#43E97B', '#38F9D7', '#4FACFE', '#C471F5'], ['#43E97B', '#C471F5']],
+  ['Bubblegum',      ['#FF6AC1', '#FF9BDC', '#8AD4FF'], ['#FF6AC1', '#8AD4FF']],
+  ['Sakura',         ['#FFD1DC', '#FF9EB5', '#FF6F91'], ['#FF9EB5', '#FF6F91']],
+  ['Midnight City',  ['#00C9FF', '#7C4DFF', '#FF2BD6'], ['#7C4DFF', '#00C9FF']],
+  ['Gamer Green',    ['#39FF14', '#00FFC8', '#00B8FF'], ['#39FF14', '#00B8FF']],
+  ['Ultraviolet',    ['#6A00F4', '#B100E8', '#FF00C8', '#00E5FF'], ['#B100E8', '#00E5FF']],
+];
+
+const MG_SOLIDS = [
+  ['Red', '#FF3B30'], ['Crimson', '#DC143C'], ['Orange', '#FF9500'], ['Amber', '#FFB300'],
+  ['Yellow', '#FFE600'], ['Lime', '#C6FF00'], ['Green', '#30D158'], ['Spotify Green', '#1ED760'],
+  ['Emerald', '#10B981'], ['Mint', '#00F5A0'], ['Teal', '#14B8A6'], ['Cyan', '#00E5FF'],
+  ['Sky', '#38BDF8'], ['Blue', '#2979FF'], ['Royal', '#3B5BFF'], ['Indigo', '#5E5CE6'],
+  ['Violet', '#7C4DFF'], ['Purple', '#A855F7'], ['Magenta', '#FF2BD6'], ['Hot Pink', '#FF4FA3'],
+  ['Pink', '#FF9EC4'], ['Rose', '#FF4D6D'], ['White', '#F2F2F5'], ['Silver', '#A8B0BC'],
+];
+
+const MG_PALETTES = [].concat(
+  MG_GRADIENTS.map(([name, stops, a]) => ({ id: 'g-' + mgSlug(name), name, kind: 'gradient', stops, a })),
+  MG_SOLIDS.map(([name, c]) => ({ id: 's-' + mgSlug(name), name, kind: 'solid', stops: [c, c], a: [c, mgLighten(c)] }))
+);
+
+let MG_PAL = null;       // the active palette
+
+/* make a palette the active one: sets the CSS variables the whole theme uses */
+function mgApply(p, save) {
+  const loop = p.stops.concat(p.stops[0]);        // loops back to the first color -> seamless flow
+  p.rgb = loop.map(mgHex);
+  MG_PAL = p;
+  const st = document.documentElement.style;
+  const r1 = mgHex(p.a[0]).join(', ');
+  const r2 = mgHex(p.a[1]).join(', ');
+  st.setProperty('--mg-stops', loop.join(', '));
+  st.setProperty('--mg-a1', p.a[0]);
+  st.setProperty('--mg-a2', p.a[1]);
+  st.setProperty('--mg-a1-rgb', r1);
+  st.setProperty('--mg-a2-rgb', r2);
+  // Spotify's own accents follow the palette too
+  st.setProperty('--spice-button', p.a[0]);
+  st.setProperty('--spice-rgb-button', r1);
+  st.setProperty('--spice-button-active', p.a[1]);
+  st.setProperty('--spice-rgb-button-active', r2);
+  st.setProperty('--spice-selected-row', p.a[1]);
+  st.setProperty('--spice-rgb-selected-row', r2);
+  if (save) mgSaveId(p.id);
+}
+
+/* your pick is remembered across restarts: stored in two places, in case one is cleared */
+function mgSaveId(id) {
+  try { localStorage.setItem('mg-palette', id); } catch (e) {}
+  try {
+    const sp = window.Spicetify;
+    if (sp && sp.LocalStorage && sp.LocalStorage.set) sp.LocalStorage.set('mg-palette', id);
+  } catch (e) {}
+}
+function mgLoadId() {
+  let id = null;
+  try { id = localStorage.getItem('mg-palette'); } catch (e) {}
+  if (!id) {
+    try {
+      const sp = window.Spicetify;
+      if (sp && sp.LocalStorage && sp.LocalStorage.get) id = sp.LocalStorage.get('mg-palette');
+    } catch (e) {}
+  }
+  return id;
+}
+
+/* color at position t (0..1, wraps) along the active gradient -> [r, g, b] */
+function mgSample(t) {
+  const s = MG_PAL.rgb;
+  const x = (((t % 1) + 1) % 1) * (s.length - 1);
+  const i = Math.floor(x), f = x - i;
+  const a = s[i], b = s[Math.min(s.length - 1, i + 1)];
+  return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+}
+
+function mgInitPalette() {
+  const id = mgLoadId();
+  mgApply(MG_PALETTES.find((x) => x.id === id) || MG_PALETTES[0], false);
+}
+mgInitPalette();           // restore the saved palette immediately, before anything is drawn
+
+/* ---------- line the top-bar buttons up with the bell / avatar row ---------- */
+function mgAlignButtons(top) {
+  const nav = top.querySelector(':scope > .mg-gn');
+  if (!nav || !nav.querySelectorAll) return;
+  const vw = window.innerWidth;
+  let best = null;
+  for (const el of nav.querySelectorAll('button, a, [role="button"]')) {
+    const r = el.getBoundingClientRect();
+    if (r.width < 18 || r.width > 56 || r.height < 18 || r.height > 56) continue;
+    if (r.right < vw - 400 || r.right > vw - 130) continue;   // the right-hand icon group only
+    if (!best || r.left < best.left) best = r;                 // leftmost of them = the bell
+  }
+  if (!best) return;
+  const size = 32, gap = 6;
+  const btns = [...top.querySelectorAll('.mg-topbtn')].sort((a, b) => (a._mgOrder || 0) - (b._mgOrder || 0));
+  btns.forEach((b, i) => {
+    b.style.top = Math.round(best.top + best.height / 2 - size / 2) + 'px';
+    b.style.right = Math.round(vw - best.left + 8 + i * (size + gap)) + 'px';
+  });
+}
+
+function mgCloseOthers(me) {
+  Object.keys(MG_PAGES).forEach((k) => { if (k !== me) MG_PAGES[k].close(); });
+}
+
+/* ================= THE COLORS PAGE ================= */
+const MG_PAL_CSS = `
+#mg-pal-btn{position:fixed;top:12px;right:340px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;border-radius:50%;border:0;background:transparent;color:#B3B3C0;cursor:pointer;z-index:60;-webkit-app-region:no-drag;transition:color .15s ease,background-color .15s ease,box-shadow .15s ease}
+#mg-pal-btn:hover{color:#fff;background:rgba(255,255,255,.10)}
+#mg-pal-btn.on{color:#fff;background:linear-gradient(135deg,var(--mg-a1,#7C4DFF),var(--mg-a2,#00E5FF));box-shadow:0 0 14px rgba(var(--mg-a1-rgb,124,77,255),.6)}
+#mg-palpage{position:fixed;overflow:hidden;margin:0;padding:0;z-index:30;background:#141416;color:#fff}
+#mg-palpage .mg-pal-scroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden}
+#mg-palpage .mg-pal-wrap{max-width:1100px;margin:0 auto;padding:30px 36px 56px}
+#mg-palpage .mg-pal-title{font-size:34px;font-weight:800;letter-spacing:-.01em;line-height:1.15}
+#mg-palpage .mg-pal-sub{margin:8px 0 22px;font-size:15px;color:#BDBDCB}
+#mg-palpage .mg-pal-preview{height:10px;border-radius:999px;margin-bottom:6px;background:linear-gradient(90deg,var(--mg-stops,#FF2D55,#FF9500,#FFE600,#2BFF88,#00E5FF,#7C4DFF,#FF2BD6,#FF2D55));background-size:200% 100%;animation:mgp-flow 6s linear infinite;box-shadow:0 0 18px rgba(var(--mg-a1-rgb,124,77,255),.5)}
+#mg-palpage .mg-pal-h{margin:30px 0 14px;font-size:13px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#A8A8B3}
+#mg-palpage .mg-pal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+#mg-palpage .mg-pal-card{display:block;width:100%;padding:10px;margin:0;border-radius:14px;border:2px solid transparent;background:#1C1C20;color:#fff;text-align:left;cursor:pointer;transition:background-color .15s ease,transform .15s ease,border-color .15s ease,box-shadow .15s ease}
+#mg-palpage .mg-pal-card:hover{background:#25252B;transform:translateY(-2px)}
+#mg-palpage .mg-pal-card.sel{border-color:var(--mg-a2,#00E5FF);box-shadow:0 0 16px rgba(var(--mg-a2-rgb,0,229,255),.45)}
+#mg-palpage .mg-pal-sw{height:54px;border-radius:9px;background-size:200% 100%}
+#mg-palpage .mg-pal-sw.flow{animation:mgp-flow 6s linear infinite}
+#mg-palpage .mg-pal-name{margin-top:9px;font-size:13px;font-weight:600;color:#F2F2F5}
+#mg-palpage .mg-pal-reset{margin-top:34px}
+#mg-palpage .mg-pal-act{padding:10px 18px;border-radius:999px;border:0;font-size:13px;font-weight:700;cursor:pointer;color:#fff;background:linear-gradient(135deg,var(--mg-a1,#7C4DFF),var(--mg-a2,#00E5FF))}
+#mg-palpage .mg-pal-act.ghost{background:rgba(255,255,255,.08);color:#E4E4EE}
+#mg-palpage .mg-pal-act:hover{filter:brightness(1.12)}
+#mg-palpage .mg-pal-close{position:absolute;top:14px;right:16px;width:34px;height:34px;padding:0;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#F2F2F5;font-size:14px;cursor:pointer;z-index:2}
+#mg-palpage .mg-pal-close:hover{color:var(--mg-a2,#00E5FF);border-color:var(--mg-a2,#00E5FF)}
+@keyframes mgp-flow{from{background-position:0% 0}to{background-position:200% 0}}
+@media (prefers-reduced-motion:reduce){#mg-palpage .mg-pal-preview,#mg-palpage .mg-pal-sw.flow{animation:none!important}}
+`;
+
+function startPalette(top) {
+  if (!MG_COLORS_ENABLED || document.getElementById('mg-palpage')) return;
+
+  const style = document.createElement('style');
+  style.id = 'mg-pal-style';
+  style.textContent = MG_PAL_CSS;
+  const host = [document.head, document.documentElement, top].find((h) => h && h.appendChild);
+  if (host) host.appendChild(style);
+
+  const mk = (tag, cls, text) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text) e.textContent = text;
+    return e;
+  };
+
+  /* top-bar button */
+  const btn = document.createElement('button');
+  btn.id = 'mg-pal-btn';
+  btn.className = 'mg-topbtn';
+  btn._mgOrder = 1;
+  btn.style.cssText = 'position:fixed;top:12px;right:340px;width:32px;height:32px;';
+  btn.setAttribute('aria-label', 'Colors');
+  btn.title = 'Colors (Ctrl+Alt+C)';
+  btn.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">'
+    + '<path d="M8 1a7 7 0 1 0 0 14c1.1 0 1.6-.8 1.3-1.7-.3-.9.2-1.8 1.2-1.8H12a3 3 0 0 0 3-3C15 4 12 1 8 1z'
+    + 'M4.5 8.2a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm2-3a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm3.5 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2z'
+    + 'm2.5 3a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>';
+  top.appendChild(btn);
+
+  /* page */
+  const page = document.createElement('div');
+  page.id = 'mg-palpage';
+  page.style.cssText = 'position:fixed;display:none;';   // out of the page grid even before any CSS loads
+  const scroll = mk('div', 'mg-pal-scroll');
+  const wrap = mk('div', 'mg-pal-wrap');
+  const closeBtn = mk('button', 'mg-pal-close', '\u2715');
+  closeBtn.setAttribute('aria-label', 'Close colors');
+
+  wrap.appendChild(mk('div', 'mg-pal-title', 'Colors'));
+  wrap.appendChild(mk('div', 'mg-pal-sub', 'Pick a gradient or a solid color to use instead of the rainbow. It applies everywhere in the theme, and your choice is saved.'));
+  wrap.appendChild(mk('div', 'mg-pal-preview'));
+
+  const cards = [];
+  const addGrid = (heading, list) => {
+    wrap.appendChild(mk('div', 'mg-pal-h', heading));
+    const grid = mk('div', 'mg-pal-grid');
+    list.forEach((p) => {
+      const card = mk('button', 'mg-pal-card');
+      card.setAttribute('data-id', p.id);
+      const sw = mk('div', 'mg-pal-sw' + (p.kind === 'gradient' ? ' flow' : ''));
+      if (p.kind === 'gradient') sw.style.backgroundImage = 'linear-gradient(90deg,' + p.stops.concat(p.stops[0]).join(',') + ')';
+      else sw.style.backgroundColor = p.stops[0];
+      card.appendChild(sw);
+      card.appendChild(mk('div', 'mg-pal-name', p.name));
+      card.addEventListener('click', () => { mgApply(p, true); refreshSel(); });
+      grid.appendChild(card);
+      cards.push(card);
+    });
+    wrap.appendChild(grid);
+  };
+  addGrid('Gradients', MG_PALETTES.filter((p) => p.kind === 'gradient'));
+  addGrid('Solid colors', MG_PALETTES.filter((p) => p.kind === 'solid'));
+
+  const reset = mk('div', 'mg-pal-reset');
+  const resetBtn = mk('button', 'mg-pal-act ghost', 'Reset to rainbow');
+  reset.appendChild(resetBtn);
+  wrap.appendChild(reset);
+
+  scroll.appendChild(wrap);
+  page.appendChild(scroll);
+  page.appendChild(closeBtn);
+  top.appendChild(page);
+
+  function refreshSel() {
+    cards.forEach((c) => c.classList.toggle('sel', c.getAttribute('data-id') === MG_PAL.id));
+  }
+
+  resetBtn.addEventListener('click', () => { mgApply(MG_PALETTES[0], true); refreshSel(); });
+
+  /* open / close */
+  let isOpen = false;
+  function place() {
+    const main = top.querySelector(':scope > .mg-main');
+    const r = main && main.getBoundingClientRect
+      ? main.getBoundingClientRect()
+      : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    page.style.left = r.left + 'px';
+    page.style.top = r.top + 'px';
+    page.style.width = Math.max(200, Math.round(r.width)) + 'px';
+    page.style.height = Math.max(200, Math.round(r.height)) + 'px';
+  }
+  function open() {
+    mgCloseOthers('pal');
+    place();
+    refreshSel();
+    isOpen = true;
+    page.style.display = 'block';
+    page.classList.add('open');
+    btn.classList.add('on');
+  }
+  function close() {
+    isOpen = false;
+    page.style.display = 'none';
+    page.classList.remove('open');
+    btn.classList.remove('on');
+  }
+  const toggle = () => (isOpen ? close() : open());
+  MG_PAGES.pal = { close };
+
+  btn.addEventListener('click', toggle);
+  closeBtn.addEventListener('click', close);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isOpen) { close(); return; }
+    if (e.ctrlKey && e.altKey && String(e.key).toLowerCase() === 'c') toggle();
+  });
+  window.addEventListener('resize', () => { if (isOpen) place(); });
+
+  (function whenReady(tries) {
+    const sp = window.Spicetify;
+    if (sp && sp.Platform && sp.Platform.History && sp.Platform.History.listen) {
+      try { sp.Platform.History.listen(close); } catch (e) {}   // opening any other page closes ours
+    } else if (tries > 0) {
+      setTimeout(whenReady, 300, tries - 1);
+    }
+  })(100);
+
+  // Spicetify's storage becomes available a moment after load: re-check the saved choice
+  setTimeout(() => { const id = mgLoadId(); const p = MG_PALETTES.find((x) => x.id === id); if (p && p.id !== MG_PAL.id) { mgApply(p, false); refreshSel(); } }, 1500);
+
+  refreshSel();
+}
+
 /* ================= VISUALIZER PAGE =================
    A page over the main area (top-bar button or Ctrl+Alt+V, Esc closes):
    cover, song info, progress bar and a neon radial visualizer.
@@ -234,19 +557,19 @@ function clearBars(root) {
 const MG_VIZ_CSS = `
 #mg-viz-btn{position:fixed;top:12px;right:300px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;border-radius:50%;border:0;background:transparent;color:#B3B3C0;cursor:pointer;z-index:60;-webkit-app-region:no-drag;transition:color .15s ease,background-color .15s ease,box-shadow .15s ease}
 #mg-viz-btn:hover{color:#fff;background:rgba(255,255,255,.10)}
-#mg-viz-btn.on{color:#fff;background:linear-gradient(135deg,#7C4DFF,#00E5FF);box-shadow:0 0 14px rgba(124,77,255,.6)}
+#mg-viz-btn.on{color:#fff;background:linear-gradient(135deg,var(--mg-a1,#7C4DFF),var(--mg-a2,#00E5FF));box-shadow:0 0 14px rgba(var(--mg-a1-rgb,124,77,255),.6)}
 #mg-vizpage{position:fixed;overflow:hidden;margin:0;padding:0;z-index:30;background:#141416;color:#fff}
 #mg-vizpage canvas{position:absolute;inset:0;width:100%;height:100%}
-#mg-vizpage .mg-vp-cover{position:absolute;left:50%;border-radius:50%;object-fit:cover;background:#141416;box-shadow:0 0 0 3px #141416,0 0 0 8px rgba(124,77,255,.55),0 0 60px rgba(124,77,255,.45);animation:mgv-spin 28s linear infinite;animation-play-state:paused}
+#mg-vizpage .mg-vp-cover{position:absolute;left:50%;border-radius:50%;object-fit:cover;background:#141416;box-shadow:0 0 0 3px #141416,0 0 0 8px rgba(var(--mg-a1-rgb,124,77,255),.55),0 0 60px rgba(var(--mg-a1-rgb,124,77,255),.45);animation:mgv-spin 28s linear infinite;animation-play-state:paused}
 #mg-vizpage .mg-vp-info{position:absolute;left:50%;transform:translateX(-50%);width:min(560px,80%);text-align:center}
 #mg-vizpage .mg-vp-title{font-size:36px;font-weight:800;letter-spacing:-.01em;line-height:1.15;color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.85)}
 #mg-vizpage .mg-vp-artist{font-size:19px;font-weight:600;margin-top:8px;color:#E4E4EE;text-shadow:0 1px 12px rgba(0,0,0,.85)}
 #mg-vizpage .mg-vp-album{font-size:14px;margin-top:4px;color:#BDBDCB;text-shadow:0 1px 10px rgba(0,0,0,.85)}
 #mg-vizpage .mg-vp-prog{display:flex;align-items:center;gap:12px;margin-top:24px;font-size:13px;font-weight:600;color:#D6D6E2;font-variant-numeric:tabular-nums}
 #mg-vizpage .mg-vp-bar{flex:1;height:6px;border-radius:999px;background:rgba(255,255,255,.24);overflow:hidden}
-#mg-vizpage .mg-vp-fill{height:100%;width:0;background:linear-gradient(90deg,#FF2D55,#FF9500,#FFE600,#2BFF88,#00E5FF,#7C4DFF,#FF2BD6,#FF2D55);background-size:200% 100%;animation:mgv-flow 5s linear infinite}
+#mg-vizpage .mg-vp-fill{height:100%;width:0;background:linear-gradient(90deg,var(--mg-stops,#FF2D55,#FF9500,#FFE600,#2BFF88,#00E5FF,#7C4DFF,#FF2BD6,#FF2D55));background-size:200% 100%;animation:mgv-flow 5s linear infinite}
 #mg-vizpage .mg-vp-close{position:absolute;top:14px;right:16px;width:34px;height:34px;padding:0;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#F2F2F5;font-size:14px;cursor:pointer;z-index:2}
-#mg-vizpage .mg-vp-close:hover{color:#00E5FF;border-color:#00E5FF}
+#mg-vizpage .mg-vp-close:hover{color:var(--mg-a2,#00E5FF);border-color:var(--mg-a2,#00E5FF)}
 @keyframes mgv-spin{to{transform:rotate(360deg)}}
 @keyframes mgv-flow{from{background-position:0% 0}to{background-position:200% 0}}
 @media (prefers-reduced-motion:reduce){#mg-vizpage .mg-vp-cover,#mg-vizpage .mg-vp-fill{animation:none!important}}
@@ -331,6 +654,8 @@ function startVisualizer(top) {
   // top-bar button
   const btn = document.createElement('button');
   btn.id = 'mg-viz-btn';
+  btn.className = 'mg-topbtn';
+  btn._mgOrder = 0;                    // nearest the bell
   btn.style.cssText = 'position:fixed;top:12px;right:300px;width:32px;height:32px;';
   btn.setAttribute('aria-label', 'Visualizer');
   btn.title = 'Visualizer (Ctrl+Alt+V)';
@@ -360,25 +685,6 @@ function startVisualizer(top) {
     cover.style.top = ch * PAGE_CY + 'px';
     // song info sits BELOW the longest bars / expanding beat ring so nothing crosses the text
     info.style.top = ch * PAGE_CY + pageR + 14 + Math.min(cw, ch) * 0.15 * 1.45 + 14 + 'px';
-  }
-
-  // match the bell / avatar icons: same centre line, sitting just left of them
-  function alignBtn() {
-    const nav = top.querySelector(':scope > .mg-gn');
-    if (!nav || !nav.querySelectorAll) return;
-    const vw = window.innerWidth;
-    let best = null;
-    for (const el of nav.querySelectorAll('button, a, [role="button"]')) {
-      if (el === btn) continue;
-      const r = el.getBoundingClientRect();
-      if (r.width < 18 || r.width > 56 || r.height < 18 || r.height > 56) continue;
-      if (r.right < vw - 400 || r.right > vw - 130) continue;   // the right-hand icon group only
-      if (!best || r.left < best.left) best = r;                 // leftmost of them = the bell
-    }
-    if (!best) return;
-    const size = 32;
-    btn.style.top = Math.round(best.top + best.height / 2 - size / 2) + 'px';
-    btn.style.right = Math.round(vw - best.left + 8) + 'px';
   }
 
   /* ---------- track info ---------- */
@@ -514,9 +820,10 @@ function startVisualizer(top) {
       const len = 4 * P_SCALE + v * maxLen * (1 + 0.4 * beatPulse);
       const a = (k / M) * Math.PI * 2 - Math.PI / 2;
       const cs = Math.cos(a), sn = Math.sin(a);
-      const hue = (hue0 + (k / M) * 360) % 360;
-      ctx.strokeStyle = `hsla(${hue},100%,62%,0.95)`;
-      ctx.shadowColor = `hsl(${hue},100%,60%)`;
+      const c = mgSample(k / M + hue0 / 360);          // active palette, flowing around the ring
+      const col = `${c[0] | 0},${c[1] | 0},${c[2] | 0}`;
+      ctx.strokeStyle = `rgba(${col},0.95)`;
+      ctx.shadowColor = `rgb(${col})`;
       ctx.shadowBlur = 10;
       ctx.lineWidth = Math.max(2, 3.2 * P_SCALE);
       ctx.beginPath();
@@ -526,8 +833,10 @@ function startVisualizer(top) {
     }
     // shock ring that expands on every beat
     ctx.shadowBlur = 14;
-    ctx.shadowColor = `hsl(${hue0},100%,60%)`;
-    ctx.strokeStyle = `hsla(${hue0},100%,70%,${clamp01(beatPulse * 0.6)})`;
+    const c0 = mgSample(hue0 / 360);
+    const col0 = `${c0[0] | 0},${c0[1] | 0},${c0[2] | 0}`;
+    ctx.shadowColor = `rgb(${col0})`;
+    ctx.strokeStyle = `rgba(${col0},${clamp01(beatPulse * 0.6)})`;
     ctx.lineWidth = 2 * P_SCALE;
     ctx.beginPath();
     ctx.arc(cx, cy, r0 + (1 - beatPulse) * maxLen * 1.3, 0, Math.PI * 2);
@@ -565,6 +874,7 @@ function startVisualizer(top) {
 
   /* ---------- open / close ---------- */
   function openPage() {
+    mgCloseOthers('viz');
     placePage();
     updateInfo(true);
     updateProgress();
@@ -584,6 +894,8 @@ function startVisualizer(top) {
     kick();
   }
 
+  MG_PAGES.viz = { close: closePage };
+
   function togglePage() { if (pageOpen) closePage(); else openPage(); }
 
   btn.addEventListener('click', togglePage);
@@ -593,9 +905,7 @@ function startVisualizer(top) {
     if (e.ctrlKey && e.altKey && String(e.key).toLowerCase() === 'v') togglePage();
   });
 
-  alignBtn();
-  setInterval(alignBtn, 1500);
-  window.addEventListener('resize', () => { alignBtn(); if (pageOpen) placePage(); kick(); });
+  window.addEventListener('resize', () => { if (pageOpen) placePage(); kick(); });
   document.addEventListener('visibilitychange', kick);
 
   // hook into the player once Spicetify is ready
@@ -622,6 +932,10 @@ function startVisualizer(top) {
 waitForElement([MG_TOP], ([top]) => {
   let refs = tagPanels(top);
   startVisualizer(top);
+  startPalette(top);
+  mgAlignButtons(top);                // lines the top-bar buttons up with the bell
+  setInterval(() => mgAlignButtons(top), 1500);
+  window.addEventListener('resize', () => mgAlignButtons(top));
 
   const refresh = () => {
     refs = tagPanels(top);
