@@ -113,11 +113,10 @@ div:has(> .Root__lyrics-cinema) {
      width:0 + percentage min-width = it takes the column's width but adds
      nothing to it (the old Spotify width variable was far wider than the panel). */
   width: 0 !important;
-  min-width: 0 !important;
+  min-width: max(100%, 340px) !important;
   max-width: none !important;
   box-sizing: border-box;
   overflow: hidden;
-  container-type: inline-size;
   z-index: 1;
   background: radial-gradient(280px 230px at 50% 30%, rgba(255, 255, 255, .05), transparent 72%) !important;
 }
@@ -204,8 +203,8 @@ div:has(> .Root__lyrics-cinema) {
   position: relative !important;
   inset: auto !important;
   z-index: 1;
-  width: clamp(120px, 60cqi, 200px) !important;
-  height: auto !important;
+  width: 200px !important;
+  height: 200px !important;
   max-width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: cover;
@@ -501,7 +500,7 @@ input[type="range"] { accent-color: var(--mg-blue); }
   content: "";
   position: absolute;
   left: 50%; top: 50%;
-  width: clamp(140px, 66cqi, 220px); height: auto; aspect-ratio: 1 / 1;
+  width: 220px; height: 220px;
   border-radius: 50%;
   background: conic-gradient(from 0deg, var(--mg-stops));
   box-shadow: 0 0 36px rgba(var(--mg-a1-rgb), .6);
@@ -595,30 +594,3 @@ input[type="range"] { accent-color: var(--mg-blue); }
 }
 .main-buttons-button.main-button-primary *,
 .main-button-primary * { color: #fff !important; }
-
-
-/* ===============================================================
-   7. RESPONSIVE PLAYER DETAILS
-   Let Spotify decide its own sidebar/grid widths. Scale only the custom
-   player styling to the width Spotify actually gives the player.
-   =============================================================== */
-@media (max-width: 1200px) {
-  .mg-pc { padding: 30px 14px 14px !important; gap: 10px !important; }
-  .mg-widget [data-testid="context-item-info-title"],
-  .mg-widget [data-testid="context-item-link"],
-  .mg-widget a[href^="/album/"],
-  .mg-widget .main-trackInfo-name {
-    font-size: clamp(14px, 5cqi, 20px) !important;
-    overflow-wrap: anywhere;
-  }
-  .mg-btns3 { gap: 8px !important; }
-  .mg-btns3 > .mg-bl, .mg-btns3 > .mg-br { gap: 8px !important; }
-  .mg-vol { min-width: 0 !important; }
-}
-
-@media (max-width: 900px) {
-  .mg-pc { padding: 26px 10px 12px !important; }
-  .mg-widget > .mg-cchain { padding: 8px 0 !important; }
-  .mg-pm [data-testid="control-button-playpause"],
-  .main-playPauseButton-button { width: 44px !important; height: 44px !important; }
-}
