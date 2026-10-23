@@ -117,6 +117,7 @@ div:has(> .Root__lyrics-cinema) {
   max-width: none !important;
   box-sizing: border-box;
   overflow: hidden;
+  container-type: inline-size;
   z-index: 1;
   background: radial-gradient(280px 230px at 50% 30%, rgba(255, 255, 255, .05), transparent 72%) !important;
 }
@@ -203,7 +204,7 @@ div:has(> .Root__lyrics-cinema) {
   position: relative !important;
   inset: auto !important;
   z-index: 1;
-  width: min(200px, 100%) !important;
+  width: clamp(120px, 60cqi, 200px) !important;
   height: auto !important;
   max-width: 100%;
   aspect-ratio: 1 / 1;
@@ -500,7 +501,7 @@ input[type="range"] { accent-color: var(--mg-blue); }
   content: "";
   position: absolute;
   left: 50%; top: 50%;
-  width: min(220px, calc(100vw - 24px)); height: auto; aspect-ratio: 1 / 1;
+  width: clamp(140px, 66cqi, 220px); height: auto; aspect-ratio: 1 / 1;
   border-radius: 50%;
   background: conic-gradient(from 0deg, var(--mg-stops));
   box-shadow: 0 0 36px rgba(var(--mg-a1-rgb), .6);
@@ -597,84 +598,27 @@ input[type="range"] { accent-color: var(--mg-blue); }
 
 
 /* ===============================================================
-   7. RESPONSIVE LAYOUT
-   Use the available CSS viewport, not the monitor's advertised resolution.
-   Spotify's desktop zoom / Windows scaling can make these breakpoints matter
-   even on a 1920x1080 display.
+   7. RESPONSIVE PLAYER DETAILS
+   Let Spotify decide its own sidebar/grid widths. Scale only the custom
+   player styling to the width Spotify actually gives the player.
    =============================================================== */
-.mg-top,
-.Root__top-container,
-div:has(> .Root__lyrics-cinema) {
-  grid-template-columns: minmax(220px, 22vw) minmax(0, 1fr) minmax(280px, 22vw) !important;
-  min-width: 0 !important;
-  width: 100% !important;
-  max-width: 100vw !important;
-  box-sizing: border-box !important;
-}
-
-/* Keep long titles and Spotify cards inside the main column. */
-.mg-main, .mg-ls, .mg-rs, .mg-npb,
-.Root__main-view, .Root__left-sidebar, .Root__right-sidebar {
-  min-width: 0 !important;
-  max-width: 100% !important;
-  box-sizing: border-box !important;
-}
-
-@media (max-width: 1250px) {
-  .mg-top,
-  .Root__top-container,
-  div:has(> .Root__lyrics-cinema) {
-    grid-template-columns: minmax(64px, 18vw) minmax(0, 1fr) minmax(230px, 28vw) !important;
-  }
-
-  .mg-pc { padding: 34px 14px 14px !important; gap: 12px !important; }
-  .mg-cimg { width: min(170px, 100%) !important; }
-  .mg-widget > .mg-cchain { padding: 10px 0 !important; }
-  .mg-widget > .mg-cchain:has(.mg-cimg)::before { width: min(190px, calc(100vw - 24px)); }
+@media (max-width: 1200px) {
+  .mg-pc { padding: 30px 14px 14px !important; gap: 10px !important; }
   .mg-widget [data-testid="context-item-info-title"],
   .mg-widget [data-testid="context-item-link"],
   .mg-widget a[href^="/album/"],
-  .mg-widget .main-trackInfo-name { font-size: 17px !important; }
-  .main-entityHeader-title h1,
-  .main-entityHeader-title .main-entityHeader-titleText {
-    font-size: clamp(28px, 4vw, 48px) !important;
+  .mg-widget .main-trackInfo-name {
+    font-size: clamp(14px, 5cqi, 20px) !important;
     overflow-wrap: anywhere;
   }
-  .main-entityHeader-imageContainer,
-  .main-entityHeader-image { width: 104px !important; height: 104px !important; min-width: 104px !important; }
+  .mg-btns3 { gap: 8px !important; }
+  .mg-btns3 > .mg-bl, .mg-btns3 > .mg-br { gap: 8px !important; }
+  .mg-vol { min-width: 0 !important; }
 }
 
-@media (max-width: 1000px) {
-  .mg-top,
-  .Root__top-container,
-  div:has(> .Root__lyrics-cinema) {
-    grid-template-columns: 56px minmax(0, 1fr) minmax(210px, 29vw) !important;
-  }
-  .mg-pc { padding: 30px 10px 12px !important; gap: 10px !important; }
-  .mg-cimg { width: min(145px, 100%) !important; }
-  .mg-widget > .mg-cchain:has(.mg-cimg)::before { width: min(165px, calc(100vw - 20px)); }
-  .mg-btns3 { gap: 6px !important; }
-  .mg-btns3 > .mg-bl, .mg-btns3 > .mg-br { gap: 6px !important; }
+@media (max-width: 900px) {
+  .mg-pc { padding: 26px 10px 12px !important; }
+  .mg-widget > .mg-cchain { padding: 8px 0 !important; }
   .mg-pm [data-testid="control-button-playpause"],
   .main-playPauseButton-button { width: 44px !important; height: 44px !important; }
-  .mg-vol { min-width: 0 !important; }
-  .main-entityHeader-title h1,
-  .main-entityHeader-title .main-entityHeader-titleText { font-size: clamp(24px, 3.5vw, 36px) !important; }
-}
-
-@media (max-width: 760px) {
-  .mg-top,
-  .Root__top-container,
-  div:has(> .Root__lyrics-cinema) {
-    grid-template-columns: 48px minmax(0, 1fr) minmax(180px, 34vw) !important;
-  }
-  .mg-pc { padding: 28px 7px 10px !important; }
-  .mg-cimg { width: min(120px, 100%) !important; }
-  .mg-widget > .mg-cchain:has(.mg-cimg)::before { width: min(140px, calc(100vw - 12px)); }
-  .mg-widget [data-testid="context-item-info-title"],
-  .mg-widget [data-testid="context-item-link"],
-  .mg-widget a[href^="/album/"],
-  .mg-widget .main-trackInfo-name { font-size: 15px !important; }
-  .mg-row { gap: 3px !important; }
-  .mg-btns { gap: 5px !important; }
 }
