@@ -78,7 +78,7 @@ function childContaining(parent, target) {
 function tagPlayer(bar) {
   if (!bar) return;
   const widget = bar.querySelector(
-    '[data-testid="now-playing-widget"], .main-nowPlayingWidget-nowPlaying'
+    '[data-testid="now-playing-widget-v2"], [data-testid="now-playing-widget"], .main-nowPlayingWidget-nowPlaying'
   );
   const play = bar.querySelector('[data-testid="control-button-playpause"]');
   if (!widget || !play) return;

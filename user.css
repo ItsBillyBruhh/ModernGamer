@@ -113,7 +113,7 @@ div:has(> .Root__lyrics-cinema) {
      width:0 + percentage min-width = it takes the column's width but adds
      nothing to it (the old Spotify width variable was far wider than the panel). */
   width: 0 !important;
-  min-width: max(100%, 340px) !important;
+  min-width: min(100%, 340px) !important;
   max-width: none !important;
   box-sizing: border-box;
   overflow: hidden;
