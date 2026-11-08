@@ -42,3 +42,7 @@ Dark gray, panel-free Spicetify theme with animated RGB accents.
 - Keep the Now Playing panel open on the right — the player sits above it.
 - Needs `theme.js` to be loaded (the layout depends on it). Marketplace loads it automatically.
 - Colors live in `color.ini`; animation speeds are in the last section of `user.css`.
+
+## Spotify compatibility patch
+
+This build adds support for Spotify's `now-playing-widget-v2` player test ID while retaining the legacy player selectors as fallbacks. The original Modern Gamer layout, RGB effects, visualizer, and palette controls are preserved. This patch has not been live-tested inside Spotify.
