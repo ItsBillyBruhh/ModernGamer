@@ -38,9 +38,17 @@ div:has(> .Root__lyrics-cinema) {
 }
 
 
-/* Give the main Spotify content a little breathing room below the top bar. */
+/* Push the actual content down from Spotify's top navigation.
+   Apply spacing to the main-view's inner scroll container too, because
+   Spotify can place that container inside the grid panel. */
 .mg-main {
-  padding-top: 24px !important;
+  padding-top: 64px !important;
+  box-sizing: border-box;
+}
+
+.mg-main > :first-child,
+.mg-main .main-view-container {
+  padding-top: 64px !important;
   box-sizing: border-box;
 }
 
