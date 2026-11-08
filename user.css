@@ -37,6 +37,13 @@ div:has(> .Root__lyrics-cinema) {
   grid-template-rows: auto auto auto 1fr !important;
 }
 
+
+/* Give the main Spotify content a little breathing room below the top bar. */
+.mg-main {
+  padding-top: 24px !important;
+  box-sizing: border-box;
+}
+
 /* every panel is see-through: no cards, no floating boxes */
 .mg-ls, .mg-main, .mg-rs, .mg-gn,
 .Root__nav-bar, .Root__main-view, .Root__right-sidebar {
