@@ -5,6 +5,7 @@
   // ---- settings you can edit ----
   const MG_VIZ_ENABLED = true;        // false = no visualizer
   const MG_COLORS_ENABLED = true;     // false = no Colors page (the rainbow stays)
+  const MG_LYRICS_ENABLED = true;     // false = no Lyrics page
 
 // Modern Gamer — finds Spotify's panels and player parts WITHOUT relying on
 // class names (Spotify's are randomized), then tags them with mg-* classes
@@ -47,6 +48,275 @@ function mgAdd(el, cls) {
   if (el && !el.classList.contains(cls)) el.classList.add(cls);
 }
 
+/* ================= SHARED HELPERS: artwork, track data, pages, top gap ================= */
+
+/* Spotify serves each cover at several sizes; the size is encoded in the first 16 hex
+   characters of the image id. Albums: 4851 = 64px, 1e02 = 300px, b273 = 640px.
+   Artists: f178 = 160px, 5174 = 320px, e5eb = 640px. We always ask for the largest. */
+const MG_ART_UP = {
+  'ab67616d00004851': 'ab67616d0000b273',
+  'ab67616d00001e02': 'ab67616d0000b273',
+  'ab6761610000f178': 'ab6761610000e5eb',
+  'ab67616100005174': 'ab6761610000e5eb',
+};
+
+function mgImgUrl(u) {
+  if (!u) return '';
+  return u.indexOf('spotify:image:') === 0 ? 'https://i.scdn.co/image/' + u.slice(14) : u;
+}
+
+function mgHiRes(u) {
+  u = mgImgUrl(u);
+  const m = /^(https:\/\/i\.scdn\.co\/image\/)([0-9a-f]{16})([0-9a-f]{24})(\?.*)?$/i.exec(u);
+  if (!m) return u;
+  const up = MG_ART_UP[m[2].toLowerCase()];
+  return up ? m[1] + up + m[3] : u;
+}
+
+/* the largest cover Spotify's player data offers for an item */
+function mgPickArt(it) {
+  if (!it) return '';
+  const md = it.metadata || {};
+  const list = [];
+  const push = (x, w) => {
+    const url = x && (typeof x === 'string' ? x : x.url);
+    if (url) list.push({ url, w: w || (x && x.width) || 0 });
+  };
+  ((it.album && it.album.images) || []).forEach((i) => push(i));
+  (it.images || []).forEach((i) => push(i, { small: 64, standard: 300, large: 640, xlarge: 640 }[i.label] || 0));
+  push(md.image_xlarge_url, 640);
+  push(md.image_large_url, 300);
+  push(md.image_url, 300);
+  push(md.image_small_url, 64);
+  list.sort((a, b) => b.w - a.w);
+  return mgHiRes(list.length ? list[0].url : '');
+}
+
+/* everything the pages need to know about the playing track */
+function mgTrack() {
+  const sp = window.Spicetify;
+  const d = sp && sp.Player && sp.Player.data;
+  const it = (d && (d.item || d.track)) || {};
+  const md = it.metadata || {};
+  const arr = Array.isArray(it.artists) ? it.artists : [];
+  let dur = it.duration && typeof it.duration === 'object' ? it.duration.milliseconds : it.duration;
+  dur = Number(dur) || Number(md.duration) || (sp && sp.Player && sp.Player.getDuration ? sp.Player.getDuration() : 0) || 0;
+  return {
+    uri: it.uri || '',
+    name: it.name || md.title || '',
+    artists: arr.length ? arr.map((a) => a.name).join(', ') : md.artist_name || '',
+    artist1: (arr[0] && arr[0].name) || md.artist_name || '',
+    album: (it.album && it.album.name) || md.album_title || '',
+    duration: dur,
+    art: mgPickArt(it),
+  };
+}
+
+/* Swap a low-resolution <img> for the large version of the same cover, once it has loaded.
+   If the large file can't be loaded the original stays - no flicker, no broken image. */
+function mgUpgradeImg(img) {
+  const cur = img.currentSrc || img.src;
+  const hi = mgHiRes(cur);
+  if (!hi || hi === cur || img._mgPending === hi) return;
+  img._mgPending = hi;
+  const t = new Image();
+  t.decoding = 'async';
+  t.onload = () => {
+    img._mgPending = '';
+    if (img.isConnected && (img.currentSrc || img.src) === cur) {
+      img.removeAttribute('srcset');
+      img.src = hi;
+    }
+  };
+  t.onerror = () => { img._mgPending = ''; };
+  t.src = hi;
+}
+
+/* page headers / cards that are shown larger than their file: upgrade those too */
+function mgUpgradeMain(main) {
+  if (!main) return;
+  const dpr = window.devicePixelRatio || 1;
+  for (const img of main.querySelectorAll('img[src*="i.scdn.co/image/"]')) {
+    if (img._mgSeen === img.src || img.clientWidth < 100) continue;
+    img._mgSeen = img.src;
+    if (img.naturalWidth && img.clientWidth * dpr <= img.naturalWidth * 1.05) continue;
+    mgUpgradeImg(img);
+  }
+}
+
+/* run fn(Spicetify) as soon as the Player and Platform APIs exist */
+function mgWhenSpicetify(fn, tries) {
+  const sp = window.Spicetify;
+  if (sp && sp.Player && sp.Player.addEventListener && sp.Platform) fn(sp);
+  else if ((tries === undefined ? 300 : tries) > 0) setTimeout(mgWhenSpicetify, 300, fn, (tries === undefined ? 300 : tries) - 1);
+}
+
+/* ---------- pages: one fade in/out for every page (Visualizer, Lyrics, Colors) ---------- */
+const MG_PAGE_CSS = `
+.mg-page{opacity:0;transition:opacity .18s ease;pointer-events:none}
+.mg-page.open{opacity:1;pointer-events:auto}
+@media (prefers-reduced-motion:reduce){.mg-page{transition:none}}
+`;
+function mgInjectPageCss() {
+  if (document.getElementById('mg-page-style')) return;
+  const st = document.createElement('style');
+  st.id = 'mg-page-style';
+  st.textContent = MG_PAGE_CSS;
+  const where = [document.head, document.documentElement].find((h) => h && h.appendChild);
+  if (where) where.appendChild(st);
+}
+function mgShow(page) {
+  clearTimeout(page._mgT);
+  page.style.display = 'block';
+  requestAnimationFrame(() => requestAnimationFrame(() => page.classList.add('open')));
+}
+function mgHide(page) {
+  page.classList.remove('open');
+  clearTimeout(page._mgT);
+  page._mgT = setTimeout(() => { if (!page.classList.contains('open')) page.style.display = 'none'; }, 220);
+}
+
+/* keep a page exactly over the main view, even if the sidebars are dragged while it is open */
+function mgFollowMain(top, place) {
+  const main = top.querySelector(':scope > .mg-main');
+  let ro = null;
+  if (main && window.ResizeObserver) { ro = new ResizeObserver(place); ro.observe(main); }
+  return () => { if (ro) ro.disconnect(); };
+}
+
+/* ---------- player background: the blurred cover (never the main cover) ---------- */
+function mgEnsurePlayerBg(bar) {
+  if (!bar) return;
+  let bg = bar.querySelector(':scope > .mg-npb-bg');
+  if (!bg) {
+    bg = document.createElement('div');
+    bg.className = 'mg-npb-bg';
+    bg.setAttribute('aria-hidden', 'true');
+    bg.innerHTML = '<i></i><i></i>';
+    bar.insertBefore(bg, bar.firstChild);
+  }
+  mgSetPlayerBg(bg);
+}
+
+function mgSetPlayerBg(bg) {
+  const url = mgTrack().art;
+  if (bg._url === url) return;
+  bg._url = url;
+  const a = bg.children[0], b = bg.children[1];
+  if (!url) { a.classList.remove('on'); b.classList.remove('on'); return; }
+  const im = new Image();
+  im.onload = () => {
+    if (bg._url !== url) return;                       // a newer song already took over
+    const nxt = bg._flip ? a : b, prv = bg._flip ? b : a;
+    bg._flip = !bg._flip;
+    nxt.style.backgroundImage = 'url("' + url + '")';
+    nxt.classList.add('on');
+    prv.classList.remove('on');
+  };
+  im.src = url;
+}
+
+/* soft fade/slide of the whole player block when the track changes */
+function mgTrackSwap() {
+  document.querySelectorAll('.mg-widget').forEach((w) => {
+    w.classList.remove('mg-trackin');
+    void w.offsetWidth;
+    w.classList.add('mg-trackin');
+  });
+  const bg = document.querySelector('.mg-npb-bg');
+  if (bg) mgSetPlayerBg(bg);
+  document.querySelectorAll('.mg-cimg').forEach(mgUpgradeImg);
+}
+
+/* spin the cover while music plays. Uses the player state, not the (translated) button label */
+function mgSpinSync() {
+  const sp = window.Spicetify;
+  let on = false;
+  if (sp && sp.Player && sp.Player.isPlaying) on = !!sp.Player.isPlaying();
+  else {
+    const b = document.querySelector('[data-testid="control-button-playpause"]');
+    on = !!b && /pause/i.test(b.getAttribute('aria-label') || '');
+  }
+  document.querySelectorAll('.mg-cimg').forEach((img) => img.classList.toggle('running-animation', on));
+}
+
+/* ---------- the empty space above every page ----------
+   Spotify wraps page content in spacer / padded containers whose names change between versions.
+   Rather than hard-coding them, measure how far the first real content sits below the top of the
+   main view and zero out only the empty spacers and oversized top paddings in between. */
+const MG_GAP_LIMIT = 24;
+
+function mgVisibleContent(el) {
+  if (/^(IMG|SVG|BUTTON|INPUT|CANVAS|VIDEO)$/i.test(el.tagName)) return true;
+  for (const n of el.childNodes) if (n.nodeType === 3 && n.nodeValue.trim()) return true;
+  return false;
+}
+
+function mgMeasureGap(main) {
+  const mr = main.getBoundingClientRect();
+  const topBar = main.querySelector('[class*="topBar-container"], [class*="topBar-topbar"]');
+  let allowed = MG_GAP_LIMIT;
+  if (topBar && topBar.offsetHeight && topBar.querySelector('button, a, [role="button"]')) {
+    allowed = Math.max(allowed, topBar.getBoundingClientRect().height + 8);
+  }
+  for (const el of main.querySelectorAll('*')) {
+    if (topBar && topBar.contains(el)) continue;
+    if (el.closest('.mg-page') || !mgVisibleContent(el)) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 8 || r.height < 8 || r.bottom <= mr.top) continue;
+    if (getComputedStyle(el).position === 'fixed') continue;
+    return { el, gap: r.top - mr.top, allowed, mr };
+  }
+  return null;
+}
+
+function mgFixTopGap(main, log) {
+  if (!main || !main.getBoundingClientRect) return;
+  // forget old fixes that now wrap real content (React can reuse nodes between pages)
+  main.querySelectorAll('.mg-gapkill').forEach((n) => {
+    if (n.querySelector('img, svg, button, input') || n.textContent.trim()) n.classList.remove('mg-gapkill');
+  });
+  for (let pass = 0; pass < 3; pass++) {
+    const m = mgMeasureGap(main);
+    if (!m || m.gap <= m.allowed) return;
+    let changed = false;
+    for (let n = m.el; n && n !== main.parentElement; n = n.parentElement) {
+      for (let s = n.previousElementSibling; s; s = s.previousElementSibling) {   // empty spacers above
+        const cs = getComputedStyle(s);
+        if (cs.position === 'absolute' || cs.position === 'fixed' || s.classList.contains('mg-gapkill')) continue;
+        if (s.offsetHeight >= 8 && !s.textContent.trim() && !s.querySelector('img, svg, button, input, canvas')) {
+          s.classList.add('mg-gapkill'); changed = true;
+          if (log) console.debug('[Modern Gamer] removed empty spacer', s);
+        }
+      }
+      if (n === m.el) continue;
+      const cs = getComputedStyle(n);
+      if (parseFloat(cs.paddingTop) > 12 || parseFloat(cs.marginTop) > 12) {
+        if (!n.classList.contains('mg-padkill')) {
+          n.classList.add('mg-padkill'); changed = true;
+          if (log) console.debug('[Modern Gamer] trimmed top padding on', n);
+        }
+      }
+    }
+    if (!changed) return;
+  }
+}
+
+/* console helper: ModernGamer.debugGap() prints what sits above the page content */
+function mgDebugGap() {
+  const main = document.querySelector('.mg-main');
+  if (!main) return console.warn('[Modern Gamer] main view not found');
+  const m = mgMeasureGap(main);
+  if (!m) return console.warn('[Modern Gamer] no content found');
+  const rows = [];
+  for (let n = m.el; n && n !== main.parentElement; n = n.parentElement) {
+    const cs = getComputedStyle(n);
+    rows.push({ el: n.tagName.toLowerCase() + '.' + String(n.className).split(' ').slice(0, 2).join('.'), paddingTop: cs.paddingTop, marginTop: cs.marginTop, top: Math.round(n.getBoundingClientRect().top - m.mr.top) });
+  }
+  console.log('[Modern Gamer] gap above first content: ' + Math.round(m.gap) + 'px (allowed ' + Math.round(m.allowed) + 'px)', m.el);
+  console.table(rows);
+}
+
 /* ---------- the page grid ---------- */
 function tagPanels(top) {
   mgAdd(top, 'mg-top');
@@ -78,9 +348,11 @@ function childContaining(parent, target) {
 function tagPlayer(bar) {
   if (!bar) return;
   const widget = bar.querySelector(
-    '[data-testid="now-playing-widget-v2"], [data-testid="now-playing-widget"], .main-nowPlayingWidget-nowPlaying'
+    '[data-testid^="now-playing-widget"], .main-nowPlayingWidget-nowPlaying'
   );
-  const play = bar.querySelector('[data-testid="control-button-playpause"]');
+  const play = bar.querySelector(
+    '[data-testid="control-button-playpause"], [data-testid="control-button-play"], .main-playPauseButton-button'
+  );
   if (!widget || !play) return;
 
   // the row that holds [track info] [controls] [volume etc.]
@@ -102,8 +374,12 @@ function tagPlayer(bar) {
 
   // cover: make every wrapper from the <img> up to the widget flexible
   mgAdd(widget, 'mg-widget');
-  widget.querySelectorAll('img').forEach((img) => {
+  const imgs = [...widget.querySelectorAll('img')];
+  const covers = imgs.filter((i) => /scdn\.co|spotify:image|\/image\//.test(i.currentSrc || i.src || ''));
+  (covers.length ? covers : imgs).forEach((img) => {
     mgAdd(img, 'mg-cimg');
+    img.decoding = 'async';
+    mgUpgradeImg(img);
     if (img.parentElement && img.parentElement !== widget) mgAdd(img.parentElement, 'mg-cwrap');
     for (let n = img.parentElement; n && n !== widget; n = n.parentElement) {
       mgAdd(n, 'mg-cchain');
@@ -112,7 +388,7 @@ function tagPlayer(bar) {
 
   // progress bar above the transport buttons
   const prog = bar.querySelector(
-    '[data-testid="playback-progressbar"], .playback-bar'
+    '[data-testid="playback-progressbar"], [data-testid="progress-bar"], .playback-bar'
   );
   if (prog) {
     const pcm = ancestorContaining(play, prog, bar.parentElement);
@@ -154,6 +430,7 @@ function tagPlayer(bar) {
 
   tagFill(bar.querySelector('.mg-prog'));
   tagFill(bar.querySelector('.mg-vol'));
+  mgEnsurePlayerBg(bar);
 }
 
 /* ---------- no panels: flatten boxed cards in the right sidebar ---------- */
@@ -434,6 +711,7 @@ mgInjectThemeCss();         // ...and the rules that make every rainbow spot fol
 
 /* ---------- line the top-bar buttons up with the bell / avatar row ---------- */
 function mgAlignButtons(top) {
+  if (document.hidden) return;
   const nav = top.querySelector(':scope > .mg-gn');
   if (!nav || !nav.querySelectorAll) return;
   const vw = window.innerWidth;
@@ -444,13 +722,17 @@ function mgAlignButtons(top) {
     if (r.right < vw - 400 || r.right > vw - 130) continue;   // the right-hand icon group only
     if (!best || r.left < best.left) best = r;                 // leftmost of them = the bell
   }
-  if (!best) return;
   const size = 32, gap = 6;
+  const setPos = (b, t, r) => {       // only touch the DOM when something actually moved
+    if (b.style.top !== t + 'px') b.style.top = t + 'px';
+    if (b.style.right !== r + 'px') b.style.right = r + 'px';
+  };
   const btns = [...top.querySelectorAll('.mg-topbtn')].sort((a, b) => (a._mgOrder || 0) - (b._mgOrder || 0));
-  btns.forEach((b, i) => {
-    b.style.top = Math.round(best.top + best.height / 2 - size / 2) + 'px';
-    b.style.right = Math.round(vw - best.left + 8 + i * (size + gap)) + 'px';
-  });
+  if (!best) {            // bell not found (Spotify changed its top bar): keep the buttons in a tidy row
+    btns.forEach((b, i) => setPos(b, 12, 300 + i * (size + gap)));
+    return;
+  }
+  btns.forEach((b, i) => setPos(b, Math.round(best.top + best.height / 2 - size / 2), Math.round(vw - best.left + 8 + i * (size + gap))));
 }
 
 function mgCloseOthers(me) {
@@ -507,8 +789,8 @@ function startPalette(top) {
   const btn = document.createElement('button');
   btn.id = 'mg-pal-btn';
   btn.className = 'mg-topbtn';
-  btn._mgOrder = 1;
-  btn.style.cssText = 'position:fixed;top:12px;right:340px;width:32px;height:32px;';
+  btn._mgOrder = 2;
+  btn.style.cssText = 'position:fixed;top:12px;right:376px;width:32px;height:32px;';
   btn.setAttribute('aria-label', 'Colors');
   btn.title = 'Colors (Ctrl+Alt+C)';
   btn.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">'
@@ -520,6 +802,7 @@ function startPalette(top) {
   /* page */
   const page = document.createElement('div');
   page.id = 'mg-palpage';
+  page.className = 'mg-page';
   page.style.cssText = 'position:fixed;display:none;';   // out of the page grid even before any CSS loads
   const scroll = mk('div', 'mg-pal-scroll');
   const wrap = mk('div', 'mg-pal-wrap');
@@ -568,7 +851,7 @@ function startPalette(top) {
   resetBtn.addEventListener('click', () => { mgApply(MG_PALETTES[0], true); refreshSel(); });
 
   /* open / close */
-  let isOpen = false;
+  let isOpen = false, stopFollow = null;
   function place() {
     const main = top.querySelector(':scope > .mg-main');
     const r = main && main.getBoundingClientRect
@@ -584,15 +867,16 @@ function startPalette(top) {
     place();
     refreshSel();
     isOpen = true;
-    page.style.display = 'block';
-    page.classList.add('open');
+    mgShow(page);
     btn.classList.add('on');
+    if (stopFollow) stopFollow();
+    stopFollow = mgFollowMain(top, () => { if (isOpen) place(); });
   }
   function close() {
     isOpen = false;
-    page.style.display = 'none';
-    page.classList.remove('open');
+    mgHide(page);
     btn.classList.remove('on');
+    if (stopFollow) { stopFollow(); stopFollow = null; }
   }
   const toggle = () => (isOpen ? close() : open());
   MG_PAGES.pal = { close };
@@ -632,7 +916,10 @@ const MG_VIZ_CSS = `
 #mg-viz-btn.on{color:#fff;background:linear-gradient(135deg,var(--mg-a1,#7C4DFF),var(--mg-a2,#00E5FF));box-shadow:0 0 14px rgba(var(--mg-a1-rgb,124,77,255),.6)}
 #mg-vizpage{position:fixed;overflow:hidden;margin:0;padding:0;z-index:30;background:#141416;color:#fff}
 #mg-vizpage canvas{position:absolute;inset:0;width:100%;height:100%}
-#mg-vizpage .mg-vp-cover{position:absolute;left:50%;border-radius:50%;object-fit:cover;background:#141416;box-shadow:0 0 0 3px #141416,0 0 0 8px rgba(var(--mg-a1-rgb,124,77,255),.55),0 0 60px rgba(var(--mg-a1-rgb,124,77,255),.45);animation:mgv-spin 28s linear infinite;animation-play-state:paused}
+#mg-vizpage .mg-vp-bg{position:absolute;inset:-60px;background-size:cover;background-position:center;filter:blur(46px) saturate(1.3);opacity:0;transform:scale(1.1);transition:opacity .6s ease}
+#mg-vizpage .mg-vp-bg.on{opacity:.30}
+#mg-vizpage .mg-vp-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,20,22,.55),rgba(20,20,22,.86))}
+#mg-vizpage .mg-vp-cover{position:absolute;left:50%;border-radius:50%;object-fit:cover;image-rendering:auto;will-change:transform;background:#141416;box-shadow:0 0 0 3px #141416,0 0 0 8px rgba(var(--mg-a1-rgb,124,77,255),.55),0 0 60px rgba(var(--mg-a1-rgb,124,77,255),.45);animation:mgv-spin 28s linear infinite;animation-play-state:paused}
 #mg-vizpage .mg-vp-info{position:absolute;left:50%;transform:translateX(-50%);width:min(560px,80%);text-align:center}
 #mg-vizpage .mg-vp-title{font-size:36px;font-weight:800;letter-spacing:-.01em;line-height:1.15;color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.85)}
 #mg-vizpage .mg-vp-artist{font-size:19px;font-weight:600;margin-top:8px;color:#E4E4EE;text-shadow:0 1px 12px rgba(0,0,0,.85)}
@@ -668,7 +955,7 @@ function startVisualizer(top) {
   const cache = new Map();
   let analysis = null, analysisUri = '';
   let playing = false, beatPulse = 0, loud = 0, peak = 0;
-  let raf = 0, last = 0, lastKey = '';
+  let raf = 0, lastStep = 0, lastKey = '', stopFollow = null;
   let pageOpen = false;
 
   const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -690,8 +977,13 @@ function startVisualizer(top) {
   mgInjectVizStyle(top);
   const page = document.createElement('div');
   page.id = 'mg-vizpage';
+  page.className = 'mg-page';
   page.style.cssText = 'position:fixed;display:none;';   // out of the page grid even before any CSS loads
   const pc = document.createElement('canvas');
+  const vbg = document.createElement('div');
+  vbg.className = 'mg-vp-bg';
+  const vshade = document.createElement('div');
+  vshade.className = 'mg-vp-shade';
   const cover = document.createElement('img');
   cover.className = 'mg-vp-cover';
   const info = document.createElement('div');
@@ -717,11 +1009,12 @@ function startVisualizer(top) {
   bar.appendChild(fill);
   prog.appendChild(tNow); prog.appendChild(bar); prog.appendChild(tEnd);
   info.appendChild(title); info.appendChild(artist); info.appendChild(album); info.appendChild(prog);
-  page.appendChild(pc); page.appendChild(cover); page.appendChild(info); page.appendChild(closeBtn);
+  page.appendChild(vbg); page.appendChild(vshade); page.appendChild(pc); page.appendChild(cover); page.appendChild(info); page.appendChild(closeBtn);
   top.appendChild(page);
   const pCtx = pc.getContext('2d');
-  const P_SCALE = 0.6;
+  let P_SCALE = 1;                      // canvas pixels per CSS pixel (device-sharp, capped for speed)
   let pW = 2, pH = 2, pageR = 120, cw = 800, ch = 600;
+  const LOOKAHEAD = 70;                 // ms: bars are drawn slightly ahead to hide display latency
 
   // top-bar button
   const btn = document.createElement('button');
@@ -747,6 +1040,7 @@ function startVisualizer(top) {
     page.style.top = r.top + 'px';
     page.style.width = cw + 'px';
     page.style.height = ch + 'px';
+    P_SCALE = Math.min(1.5, window.devicePixelRatio || 1);
     pW = Math.max(2, Math.floor(cw * P_SCALE));
     pH = Math.max(2, Math.floor(ch * P_SCALE));
     pc.width = pW;
@@ -761,22 +1055,21 @@ function startVisualizer(top) {
 
   /* ---------- track info ---------- */
   function readTrack() {
-    const sp = window.Spicetify;
-    const d = sp && sp.Player && sp.Player.data;
-    const it = (d && (d.item || d.track)) || {};
-    const md = it.metadata || {};
-    const name = it.name || md.title || '';
-    const artists = Array.isArray(it.artists) && it.artists.length
-      ? it.artists.map((a) => a.name).join(', ')
-      : md.artist_name || '';
-    const albumName = (it.album && it.album.name) || md.album_title || '';
-    const img = document.querySelector('.mg-cimg');
-    let src = img && img.src ? img.src : '';
-    if (!src) {
-      const u = (it.images && it.images[0] && it.images[0].url) || md.image_xlarge_url || '';
-      src = u.indexOf('spotify:image:') === 0 ? 'https://i.scdn.co/image/' + u.slice(14) : u;
+    const t = mgTrack();
+    let src = t.art;
+    if (!src) {                          // nothing in the player data: fall back to the docked cover
+      const img = document.querySelector('.mg-cimg');
+      src = img ? mgHiRes(img.currentSrc || img.src) : '';
     }
-    return { uri: it.uri || '', name, artists, albumName, src };
+    return { uri: t.uri, name: t.name, artists: t.artists, albumName: t.album, src };
+  }
+
+  function setBg(src) {
+    if (!src) { vbg.classList.remove('on'); return; }
+    if (vbg._src === src) return;
+    vbg._src = src;
+    vbg.style.backgroundImage = 'url("' + src + '")';
+    vbg.classList.add('on');
   }
 
   function updateInfo(force) {
@@ -788,6 +1081,7 @@ function startVisualizer(top) {
     artist.textContent = t.artists;
     album.textContent = t.albumName;
     if (t.src && cover.src !== t.src) cover.src = t.src;
+    setBg(t.src);
   }
 
   function updateProgress() {
@@ -822,7 +1116,7 @@ function startVisualizer(top) {
   /* ---------- audio engine ---------- */
   function computeTargets(now) {
     const sp = window.Spicetify;
-    const progS = sp && sp.Player && sp.Player.getProgress ? sp.Player.getProgress() / 1000 : 0;
+    const progS = sp && sp.Player && sp.Player.getProgress ? (sp.Player.getProgress() + LOOKAHEAD) / 1000 : 0;
     let pulse = 0, level = 0;
     target.fill(playing ? 0.03 : 0);     // paused: bars sink to nothing so the loop can stop
 
@@ -869,51 +1163,49 @@ function startVisualizer(top) {
     const sp = window.Spicetify;
     playing = !!(sp && sp.Player && sp.Player.isPlaying && sp.Player.isPlaying());
     computeTargets(now);
+    const dt = Math.min(64, lastStep ? now - lastStep : 16);   // same feel at 30, 60 or 144 fps
+    lastStep = now;
+    const up = 1 - Math.exp(-dt / 38), down = 1 - Math.exp(-dt / 150);
     peak = 0;
     for (let i = 0; i < N; i++) {
       const t = target[i];
-      levels[i] += (t - levels[i]) * (t > levels[i] ? 0.5 : 0.12);
+      levels[i] += (t - levels[i]) * (t > levels[i] ? up : down);
       if (levels[i] > peak) peak = levels[i];
     }
   }
 
   /* ---------- painting ---------- */
   function paintRadial(ctx, W, H, hue0) {
-    const M = 120;
+    const M = 120, S = P_SCALE;
     const cx = W / 2, cy = H * PAGE_CY;
-    const R = pageR * P_SCALE;
-    const r0 = R + 14 * P_SCALE;
+    const r0 = pageR * S + 14 * S;
     const maxLen = Math.min(W, H) * 0.15;
     ctx.lineCap = 'round';
-    for (let k = 0; k < M; k++) {
-      const m = Math.abs((k / M) * 2 - 1) * (N - 1);   // mirrored left/right
-      const i0 = Math.floor(m), i1 = Math.min(N - 1, i0 + 1), f = m - i0;
-      const v = levels[i0] * (1 - f) + levels[i1] * f;
-      const len = 4 * P_SCALE + v * maxLen * (1 + 0.4 * beatPulse);
-      const a = (k / M) * Math.PI * 2 - Math.PI / 2;
-      const cs = Math.cos(a), sn = Math.sin(a);
-      const c = mgSample(k / M + hue0 / 360);          // active palette, flowing around the ring
-      const col = `${c[0] | 0},${c[1] | 0},${c[2] | 0}`;
-      ctx.strokeStyle = `rgba(${col},0.95)`;
-      ctx.shadowColor = `rgb(${col})`;
-      ctx.shadowBlur = 10;
-      ctx.lineWidth = Math.max(2, 3.2 * P_SCALE);
-      ctx.beginPath();
-      ctx.moveTo(cx + cs * r0, cy + sn * r0);
-      ctx.lineTo(cx + cs * (r0 + len), cy + sn * (r0 + len));
-      ctx.stroke();
+    for (let pass = 0; pass < 2; pass++) {        // pass 0 = soft glow, pass 1 = crisp bar
+      const glow = pass === 0;
+      ctx.lineWidth = (glow ? 9 : 3.2) * S;
+      for (let k = 0; k < M; k++) {
+        const m = Math.abs((k / M) * 2 - 1) * (N - 1);   // mirrored left/right
+        const i0 = Math.floor(m), i1 = Math.min(N - 1, i0 + 1), f = m - i0;
+        const v = levels[i0] * (1 - f) + levels[i1] * f;
+        const len = 4 * S + v * maxLen * (1 + 0.4 * beatPulse);
+        const a = (k / M) * Math.PI * 2 - Math.PI / 2;
+        const cs = Math.cos(a), sn = Math.sin(a);
+        const c = mgSample(k / M + hue0 / 360);          // active palette, flowing around the ring
+        ctx.strokeStyle = `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${glow ? 0.16 : 0.95})`;
+        ctx.beginPath();
+        ctx.moveTo(cx + cs * r0, cy + sn * r0);
+        ctx.lineTo(cx + cs * (r0 + len), cy + sn * (r0 + len));
+        ctx.stroke();
+      }
     }
     // shock ring that expands on every beat
-    ctx.shadowBlur = 14;
     const c0 = mgSample(hue0 / 360);
-    const col0 = `${c0[0] | 0},${c0[1] | 0},${c0[2] | 0}`;
-    ctx.shadowColor = `rgb(${col0})`;
-    ctx.strokeStyle = `rgba(${col0},${clamp01(beatPulse * 0.6)})`;
-    ctx.lineWidth = 2 * P_SCALE;
+    ctx.strokeStyle = `rgba(${c0[0] | 0},${c0[1] | 0},${c0[2] | 0},${clamp01(beatPulse * 0.6)})`;
+    ctx.lineWidth = 2 * S;
     ctx.beginPath();
     ctx.arc(cx, cy, r0 + (1 - beatPulse) * maxLen * 1.3, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.shadowBlur = 0;
   }
 
   function draw(now) {
@@ -935,13 +1227,13 @@ function startVisualizer(top) {
   function loop(now) {
     raf = 0;
     if (!pageOpen) return;
-    if (now - last >= 20) { last = now; draw(now); }
+    draw(now);
     const idle = !playing && peak < 0.012 && beatPulse < 0.01;
     if (!idle && !document.hidden) raf = requestAnimationFrame(loop);
   }
 
   function kick() {
-    if (!raf && pageOpen && !document.hidden) raf = requestAnimationFrame(loop);
+    if (!raf && pageOpen && !document.hidden) { lastStep = 0; raf = requestAnimationFrame(loop); }
   }
 
   /* ---------- open / close ---------- */
@@ -951,19 +1243,20 @@ function startVisualizer(top) {
     updateInfo(true);
     updateProgress();
     pageOpen = true;
-    page.style.display = 'block';
-    page.classList.add('open');
+    mgShow(page);
     btn.classList.add('on');
+    if (stopFollow) stopFollow();
+    stopFollow = mgFollowMain(top, () => { if (pageOpen) placePage(); });
     loadAnalysis();
     kick();
   }
 
   function closePage() {
     pageOpen = false;
-    page.style.display = 'none';
-    page.classList.remove('open');
+    mgHide(page);
     btn.classList.remove('on');
-    kick();
+    if (stopFollow) { stopFollow(); stopFollow = null; }
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
   }
 
   MG_PAGES.viz = { close: closePage };
@@ -984,7 +1277,7 @@ function startVisualizer(top) {
   (function whenReady(tries) {
     const sp = window.Spicetify;
     if (sp && sp.Player && sp.Player.addEventListener) {
-      sp.Player.addEventListener('songchange', () => { loadAnalysis(); if (pageOpen) updateInfo(true); kick(); });
+      sp.Player.addEventListener('songchange', () => { analysis = null; loadAnalysis(); if (pageOpen) updateInfo(true); kick(); });
       sp.Player.addEventListener('onplaypause', kick);
       try {
         if (sp.Platform && sp.Platform.History && sp.Platform.History.listen) {
@@ -1001,9 +1294,364 @@ function startVisualizer(top) {
   kick();
 }
 
+/* ================= LYRICS PAGE =================
+   A page over the main area (top-bar button or Ctrl+Alt+L, Esc closes). Lyrics come from LRCLIB
+   (https://lrclib.net), matched by title, artist, album and track length. Timed lyrics follow the
+   playback position; lyrics without timestamps are shown as plain text and labelled as untimed.
+   If nothing is found, the page says so - it never invents or guesses lyrics.                    */
+const MG_LOGO = 'https://itsbillybruhh.github.io/ModernGamer/Icon.png';
+
+const MG_LYR_CSS = `
+#mg-lyr-btn{position:fixed;top:12px;right:338px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;border-radius:50%;border:0;background:transparent;color:#B3B3C0;cursor:pointer;z-index:60;-webkit-app-region:no-drag;transition:color .15s ease,background-color .15s ease,box-shadow .15s ease}
+#mg-lyr-btn:hover{color:#fff;background:rgba(255,255,255,.10)}
+#mg-lyr-btn.on{color:#fff;background:linear-gradient(135deg,var(--mg-a1,#7C4DFF),var(--mg-a2,#00E5FF));box-shadow:0 0 14px rgba(var(--mg-a1-rgb,124,77,255),.6)}
+#mg-lyrpage{position:fixed;overflow:hidden;margin:0;padding:0;z-index:30;background:#141416;color:#fff}
+#mg-lyrpage .mg-lp-bg{position:absolute;inset:-60px;background-size:cover;background-position:center;filter:blur(50px) saturate(1.3);opacity:0;transform:scale(1.1);transition:opacity .6s ease}
+#mg-lyrpage .mg-lp-bg.on{opacity:.28}
+#mg-lyrpage .mg-lp-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,20,22,.6),rgba(20,20,22,.9))}
+#mg-lyrpage .mg-lp-head{position:absolute;left:0;right:56px;top:0;display:flex;align-items:center;gap:16px;padding:16px 24px;z-index:2;min-width:0}
+#mg-lyrpage .mg-lp-cover{width:64px;height:64px;flex:none;border-radius:50%;object-fit:cover;background:#1C1C20;box-shadow:0 0 0 2px #141416,0 0 0 4px rgba(var(--mg-a1-rgb,124,77,255),.6),0 0 22px rgba(var(--mg-a1-rgb,124,77,255),.4);image-rendering:auto}
+#mg-lyrpage .mg-lp-cover:not([src]){visibility:hidden}
+#mg-lyrpage .mg-lp-meta{min-width:0}
+#mg-lyrpage .mg-lp-title{font-size:20px;font-weight:800;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mg-lyrpage .mg-lp-artist{font-size:14px;color:#BDBDCB;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mg-lyrpage .mg-lp-scroll{position:absolute;left:0;right:0;top:96px;bottom:34px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 14%,#000 86%,transparent 100%);mask-image:linear-gradient(180deg,transparent 0,#000 14%,#000 86%,transparent 100%)}
+#mg-lyrpage .mg-lp-scroll::-webkit-scrollbar{display:none}
+#mg-lyrpage .mg-lp-lines{max-width:760px;margin:0 auto;padding:30vh 32px;box-sizing:border-box}
+#mg-lyrpage .mg-lp-line{display:block;width:100%;margin:0;padding:8px 0;border:0;background:none;text-align:left;font:inherit;font-size:clamp(22px,2.6vw,34px);font-weight:800;line-height:1.28;letter-spacing:-.01em;color:#fff;opacity:.62;cursor:pointer;transition:opacity .35s ease,transform .35s ease;transform-origin:left center}
+#mg-lyrpage .mg-lp-line:hover{opacity:.9}
+#mg-lyrpage .mg-lp-line.past{opacity:.32}
+#mg-lyrpage .mg-lp-line.gap{font-size:20px;opacity:.28;cursor:default}
+#mg-lyrpage .mg-lp-line.now{opacity:1;transform:scale(1.03)}
+#mg-lyrpage .mg-lp-line.now span{background:linear-gradient(90deg,var(--mg-stops,#FF2D55,#FF9500,#FFE600,#2BFF88,#00E5FF,#7C4DFF,#FF2BD6,#FF2D55));background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;animation:mgl-flow 6s linear infinite;filter:drop-shadow(0 0 14px rgba(var(--mg-a1-rgb,124,77,255),.5))}
+#mg-lyrpage .mg-lp-plain{max-width:760px;margin:0 auto;padding:12px 32px 30vh;box-sizing:border-box;font-size:20px;font-weight:600;line-height:1.55;color:#E4E4EE;white-space:pre-wrap}
+#mg-lyrpage .mg-lp-note{max-width:760px;margin:0 auto;padding:0 32px 6px;font-size:13px;color:#A8A8B3}
+#mg-lyrpage .mg-lp-status{position:absolute;left:0;right:0;top:96px;bottom:34px;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:0 32px}
+#mg-lyrpage .mg-lp-status img{width:96px;height:96px;border-radius:18px;margin-bottom:10px;opacity:.95}
+#mg-lyrpage .mg-lp-status b{font-size:24px;font-weight:800}
+#mg-lyrpage .mg-lp-status span{font-size:15px;color:#BDBDCB;max-width:420px}
+#mg-lyrpage .mg-lp-src{position:absolute;left:0;right:0;bottom:10px;text-align:center;font-size:12px;color:#8E8E9A;z-index:2}
+#mg-lyrpage .mg-lp-close{position:absolute;top:14px;right:16px;width:34px;height:34px;padding:0;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#F2F2F5;font-size:14px;cursor:pointer;z-index:3}
+#mg-lyrpage .mg-lp-close:hover{color:var(--mg-a2,#00E5FF);border-color:var(--mg-a2,#00E5FF)}
+@keyframes mgl-flow{from{background-position:0% 0}to{background-position:200% 0}}
+@media (prefers-reduced-motion:reduce){#mg-lyrpage .mg-lp-line.now span{animation:none!important}#mg-lyrpage .mg-lp-line{transition:none}}
+`;
+
+/* "[01:23.45] text" lines -> [{t: ms, text}] sorted by time. Metadata tags ([ar:...]) are skipped. */
+function mgParseLrc(txt) {
+  const out = [];
+  const re = /\[(\d+):(\d{1,2})(?:[.:](\d{1,3}))?\]/g;
+  for (const raw of String(txt || '').split(/\r?\n/)) {
+    re.lastIndex = 0;
+    const stamps = [];
+    let m, end = 0;
+    while ((m = re.exec(raw)) && m.index === end) {
+      stamps.push(+m[1] * 60000 + +m[2] * 1000 + (m[3] ? Math.round(+('0.' + m[3]) * 1000) : 0));
+      end = re.lastIndex;
+    }
+    if (!stamps.length) continue;
+    const text = raw.slice(end).replace(/<\d+:\d+(?:[.:]\d+)?>/g, '').trim();   // drop word-level stamps
+    stamps.forEach((t) => out.push({ t, text }));
+  }
+  return out.sort((a, b) => a.t - b.t);
+}
+
+/* index of the last line that has started at position ms (-1 before the first line) */
+function mgLineAt(lines, ms) {
+  let lo = 0, hi = lines.length - 1, ans = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (lines[mid].t <= ms) { ans = mid; lo = mid + 1; } else hi = mid - 1;
+  }
+  return ans;
+}
+
+async function mgGetJson(url) {
+  try {
+    const r = await fetch(url);
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return await r.json();
+  } catch (e) {
+    const sp = window.Spicetify;
+    if (sp && sp.CosmosAsync && sp.CosmosAsync.get) {     // Spotify's own request channel, if plain fetch is blocked
+      try { return await sp.CosmosAsync.get(url); }
+      catch (e2) { if (/404/.test(String((e2 && (e2.message || e2.status)) || ''))) return null; throw e2; }
+    }
+    throw e;
+  }
+}
+
+/* -> { kind: 'synced'|'plain'|'instrumental'|'none', lines?, text? }   (throws on network failure) */
+async function mgFindLyrics(t) {
+  const secs = Math.round((t.duration || 0) / 1000);
+  const shape = (d) => {
+    if (!d) return null;
+    if (d.instrumental) return { kind: 'instrumental' };
+    if (d.syncedLyrics) {
+      const lines = mgParseLrc(d.syncedLyrics);
+      if (lines.length) return { kind: 'synced', lines };
+    }
+    if (d.plainLyrics && d.plainLyrics.trim()) return { kind: 'plain', text: d.plainLyrics.trim() };
+    return null;
+  };
+  const q = { track_name: t.name, artist_name: t.artist1 };
+  if (t.album) q.album_name = t.album;
+  if (secs) q.duration = secs;
+  let r = shape(await mgGetJson('https://lrclib.net/api/get?' + new URLSearchParams(q)));
+  if (r) return r;
+
+  // fallback search; only accept a version whose length matches, so timestamps line up
+  const clean = t.name.replace(/\s*[\(\[][^)\]]*[\)\]]/g, '').replace(/\s+-\s+.*$/, '').trim() || t.name;
+  const list = await mgGetJson('https://lrclib.net/api/search?' + new URLSearchParams({ track_name: clean, artist_name: t.artist1 }));
+  if (Array.isArray(list)) {
+    const near = list.filter((x) => !secs || Math.abs((x.duration || 0) - secs) <= 4);
+    near.sort((a, b) => (b.syncedLyrics ? 2 : 0) - (a.syncedLyrics ? 2 : 0) + Math.abs((a.duration || 0) - secs) / 100 - Math.abs((b.duration || 0) - secs) / 100);
+    for (const x of near) { r = shape(x); if (r) return r; }
+  }
+  return { kind: 'none' };
+}
+
+function startLyrics(top) {
+  if (!MG_LYRICS_ENABLED || document.getElementById('mg-lyrpage')) return;
+
+  const style = document.createElement('style');
+  style.id = 'mg-lyr-style';
+  style.textContent = MG_LYR_CSS;
+  const host = [document.head, document.documentElement, top].find((h) => h && h.appendChild);
+  if (host) host.appendChild(style);
+
+  const mk = (tag, cls, text) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text) e.textContent = text;
+    return e;
+  };
+
+  /* ---------- DOM ---------- */
+  const page = mk('div', 'mg-page');
+  page.id = 'mg-lyrpage';
+  page.style.cssText = 'position:fixed;display:none;';
+  const bg = mk('div', 'mg-lp-bg');
+  const shade = mk('div', 'mg-lp-shade');
+  const head = mk('div', 'mg-lp-head');
+  const cover = mk('img', 'mg-lp-cover');
+  cover.alt = '';
+  const meta = mk('div', 'mg-lp-meta');
+  const title = mk('div', 'mg-lp-title');
+  const artist = mk('div', 'mg-lp-artist');
+  meta.appendChild(title); meta.appendChild(artist);
+  head.appendChild(cover); head.appendChild(meta);
+  const scroll = mk('div', 'mg-lp-scroll');
+  const status = mk('div', 'mg-lp-status');
+  const src = mk('div', 'mg-lp-src', 'Lyrics from LRCLIB');
+  const closeBtn = mk('button', 'mg-lp-close', '\u2715');
+  closeBtn.setAttribute('aria-label', 'Close lyrics');
+  [bg, shade, head, scroll, status, src, closeBtn].forEach((e) => page.appendChild(e));
+  top.appendChild(page);
+
+  const btn = document.createElement('button');
+  btn.id = 'mg-lyr-btn';
+  btn.className = 'mg-topbtn';
+  btn._mgOrder = 1;
+  btn.style.cssText = 'position:fixed;top:12px;right:338px;width:32px;height:32px;';
+  btn.setAttribute('aria-label', 'Lyrics');
+  btn.title = 'Lyrics (Ctrl+Alt+L)';
+  btn.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">'
+    + '<rect x="1" y="2" width="14" height="2" rx="1"/><rect x="1" y="6" width="9" height="2" rx="1"/>'
+    + '<rect x="1" y="10" width="12" height="2" rx="1"/><rect x="1" y="14" width="7" height="2" rx="1" opacity=".55"/></svg>';
+  top.appendChild(btn);
+
+  /* ---------- state ---------- */
+  const cache = new Map();           // uri -> result (capped)
+  let isOpen = false, raf = 0, stopFollow = null, unlisten = null;
+  let curKey = '', token = 0;
+  let res = null, lineEls = [], active = -2, userUntil = 0;
+
+  function place() {
+    const main = top.querySelector(':scope > .mg-main');
+    const r = main && main.getBoundingClientRect ? main.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    page.style.left = r.left + 'px';
+    page.style.top = r.top + 'px';
+    page.style.width = Math.max(240, Math.round(r.width)) + 'px';
+    page.style.height = Math.max(240, Math.round(r.height)) + 'px';
+  }
+
+  /* ---------- rendering ---------- */
+  function showStatus(head1, sub, logo) {
+    scroll.style.display = 'none';
+    status.style.display = 'flex';
+    status.textContent = '';
+    if (logo) {
+      const im = mk('img');
+      im.alt = '';
+      im.src = MG_LOGO;
+      im.onerror = () => { im.style.display = 'none'; };
+      status.appendChild(im);
+    }
+    status.appendChild(mk('b', '', head1));
+    if (sub) status.appendChild(mk('span', '', sub));
+  }
+
+  function showScroll() {
+    status.style.display = 'none';
+    scroll.style.display = 'block';
+  }
+
+  function render(t, r) {
+    res = r; lineEls = []; active = -2;
+    scroll.textContent = '';
+    scroll.scrollTop = 0;
+    if (r.kind === 'synced') {
+      showScroll();
+      const box = mk('div', 'mg-lp-lines');
+      r.lines.forEach((l, i) => {
+        const el = mk('button', 'mg-lp-line' + (l.text ? '' : ' gap'));
+        el.type = 'button';
+        el.appendChild(mk('span', '', l.text || '\u266A'));
+        if (l.text) el.addEventListener('click', () => {
+          const sp = window.Spicetify;
+          if (sp && sp.Player && sp.Player.seek) { sp.Player.seek(l.t); tick(true); }
+        });
+        el.dataset.i = i;
+        box.appendChild(el);
+        lineEls.push(el);
+      });
+      scroll.appendChild(box);
+      tick(true);
+    } else if (r.kind === 'plain') {
+      showScroll();
+      scroll.appendChild(mk('div', 'mg-lp-note', 'These lyrics have no timing, so they don\u2019t follow the song.'));
+      scroll.appendChild(mk('div', 'mg-lp-plain', r.text));
+    } else if (r.kind === 'instrumental') {
+      showStatus('Instrumental', 'This track has no lyrics.', true);
+    } else {
+      showStatus('No lyrics found', 'LRCLIB has no lyrics that match this track.', true);
+    }
+  }
+
+  /* ---------- sync ---------- */
+  function tick(force) {
+    if (!res || res.kind !== 'synced' || !lineEls.length) return;
+    const sp = window.Spicetify;
+    const pos = sp && sp.Player && sp.Player.getProgress ? sp.Player.getProgress() : 0;
+    const idx = mgLineAt(res.lines, pos + 90);          // small look-ahead for display latency
+    if (idx === active && !force) return;
+    const prev = active;
+    active = idx;
+    const all = force || prev < -1;                    // first paint / forced: restyle every line
+    const lo = all ? 0 : Math.max(0, Math.min(prev, idx) - 1);
+    const hi = all ? lineEls.length - 1 : Math.min(lineEls.length - 1, Math.max(prev, idx) + 1);
+    for (let i = lo; i <= hi; i++) {
+      const cls = 'mg-lp-line' + (res.lines[i].text ? '' : ' gap') + (i < idx ? ' past' : i === idx ? ' now' : '');
+      if (lineEls[i].className !== cls) lineEls[i].className = cls;
+    }
+    if (idx >= 0 && (force || Date.now() > userUntil)) centre(lineEls[idx], force);
+  }
+
+  function centre(el, instant) {
+    const y = el.offsetTop - scroll.clientHeight / 2 + el.offsetHeight / 2;
+    scroll.scrollTo({ top: Math.max(0, y), behavior: instant ? 'auto' : 'smooth' });
+  }
+
+  function loop() {
+    raf = 0;
+    if (!isOpen || document.hidden) return;
+    tick(false);
+    const sp = window.Spicetify;
+    if (sp && sp.Player && sp.Player.isPlaying && sp.Player.isPlaying()) raf = requestAnimationFrame(loop);
+  }
+  function kick() { if (!raf && isOpen && !document.hidden) raf = requestAnimationFrame(loop); }
+
+  // the person is reading ahead / scrolling: don't fight them for a few seconds
+  const hold = () => { userUntil = Date.now() + 3500; };
+  scroll.addEventListener('wheel', hold, { passive: true });
+  scroll.addEventListener('touchstart', hold, { passive: true });
+  scroll.addEventListener('pointerdown', hold);
+
+  /* ---------- loading ---------- */
+  function paintHead(t) {
+    title.textContent = t.name;
+    artist.textContent = t.artists;
+    if (t.art && cover.src !== t.art) cover.src = t.art;
+    if (!t.art) cover.removeAttribute('src');
+    if (t.art) { if (bg._u !== t.art) { bg._u = t.art; bg.style.backgroundImage = 'url("' + t.art + '")'; } bg.classList.add('on'); }
+    else bg.classList.remove('on');
+  }
+
+  async function load(force) {
+    const t = mgTrack();
+    const key = t.uri + '|' + t.name;
+    if (!force && key === curKey) return;
+    curKey = key;
+    const my = ++token;
+    paintHead(t);
+    res = null; lineEls = []; active = -2;
+    if (!t.name) { showStatus('Nothing is playing', 'Play a song and its lyrics show up here.', true); return; }
+    if (/^spotify:(episode|show|ad)/.test(t.uri)) { showStatus('No lyrics for this', 'Lyrics are available for songs, not podcasts or ads.', true); return; }
+    if (cache.has(key)) { render(t, cache.get(key)); kick(); return; }
+    showStatus('Finding lyrics\u2026', '', false);
+    try {
+      const r = await mgFindLyrics(t);
+      if (my !== token) return;                      // the song changed while we were waiting
+      cache.set(key, r);
+      if (cache.size > 40) cache.delete(cache.keys().next().value);
+      render(t, r);
+      kick();
+    } catch (e) {
+      if (my !== token) return;
+      console.debug('[Modern Gamer] lyrics lookup failed', e);
+      curKey = '';                                   // let the next open / song change retry
+      showStatus('Couldn\u2019t load lyrics', 'Check your connection. Spotify may also be blocking requests to lrclib.net.', true);
+    }
+  }
+
+  /* ---------- open / close ---------- */
+  function open() {
+    mgCloseOthers('lyr');
+    place();
+    isOpen = true;
+    mgShow(page);
+    btn.classList.add('on');
+    if (stopFollow) stopFollow();
+    stopFollow = mgFollowMain(top, () => { if (isOpen) place(); });
+    load(false);
+    kick();
+  }
+  function close() {
+    isOpen = false;
+    mgHide(page);
+    btn.classList.remove('on');
+    if (stopFollow) { stopFollow(); stopFollow = null; }
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+  }
+  const toggle = () => (isOpen ? close() : open());
+  MG_PAGES.lyr = { close };
+
+  btn.addEventListener('click', toggle);
+  closeBtn.addEventListener('click', close);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isOpen) { close(); return; }
+    if (e.ctrlKey && e.altKey && String(e.key).toLowerCase() === 'l') toggle();
+  });
+  window.addEventListener('resize', () => { if (isOpen) place(); });
+  document.addEventListener('visibilitychange', kick);
+
+  mgWhenSpicetify((sp) => {
+    sp.Player.addEventListener('songchange', () => { if (isOpen) load(true); });
+    sp.Player.addEventListener('onplaypause', () => { tick(true); kick(); });
+    sp.Player.addEventListener('onprogress', () => { if (isOpen) tick(false); });   // also catches seeks while paused
+    try { if (sp.Platform.History && sp.Platform.History.listen) unlisten = sp.Platform.History.listen(close); } catch (e) {}
+  });
+}
+
+window.ModernGamer = { hiRes: mgHiRes, parseLrc: mgParseLrc, lineAt: mgLineAt, debugGap: mgDebugGap };
+
 waitForElement([MG_TOP], ([top]) => {
   let refs = tagPanels(top);
+  mgInjectPageCss();
   startVisualizer(top);
+  startLyrics(top);
   startPalette(top);
   mgAlignButtons(top);                // lines the top-bar buttons up with the bell
   setInterval(() => mgAlignButtons(top), 1500);
@@ -1015,8 +1663,11 @@ waitForElement([MG_TOP], ([top]) => {
   };
   const slowRefresh = () => {
     flatten(refs.rightbar);
-    killBackdrops(top.querySelector(':scope > .mg-main'));
+    const main = top.querySelector(':scope > .mg-main');
+    killBackdrops(main);
     clearBars(top.querySelector(':scope > .mg-gn'));
+    mgFixTopGap(main, false);
+    mgUpgradeMain(main);
   };
   const refreshSoon = debounce(refresh, 250);
   const slowSoon = debounce(slowRefresh, 700);
@@ -1043,19 +1694,26 @@ waitForElement([MG_TOP], ([top]) => {
     if (++tries > 40) clearInterval(retry);
   }, 500);
 
-  // spin the cover while music plays, pause when paused
-  waitForElement(['[data-testid="control-button-playpause"]'], ([btn]) => {
-    const update = () => {
-      const on = btn.getAttribute('aria-label') === 'Pause';
-      document.querySelectorAll('.mg-cimg').forEach((img) => img.classList.toggle('running-animation', on));
-    };
-    new MutationObserver(update).observe(btn, {
-      attributes: true,
-      attributeFilter: ['aria-label'],
-    });
-    setInterval(update, 1000);
-    update();
+  // Spicetify events: cover spin, track-change transition, hi-res art, and the top gap after navigation
+  let navT = 0;
+  const afterNav = () => {
+    clearTimeout(navT);
+    navT = setTimeout(() => { slowRefresh(); setTimeout(slowRefresh, 900); }, 350);
+  };
+  mgWhenSpicetify((sp) => {
+    sp.Player.addEventListener('songchange', () => { mgTrackSwap(); mgSpinSync(); });
+    sp.Player.addEventListener('onplaypause', mgSpinSync);
+    try { if (sp.Platform.History && sp.Platform.History.listen) sp.Platform.History.listen(afterNav); } catch (e) {}
+    mgTrackSwap();
+    mgSpinSync();
   });
+  document.addEventListener('visibilitychange', mgSpinSync);
+  mgSpinSync();
+
+  // art swaps: Spotify rewrites the cover's src on every track change, so upgrade it again
+  new MutationObserver((muts) => {
+    for (const m of muts) if (m.target.classList && m.target.classList.contains('mg-cimg')) mgUpgradeImg(m.target);
+  }).observe(top, { attributes: true, attributeFilter: ['src', 'srcset'], subtree: true });
 });
 
 })();

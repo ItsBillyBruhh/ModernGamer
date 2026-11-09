@@ -38,18 +38,27 @@ div:has(> .Root__lyrics-cinema) {
 }
 
 
-/* Push the actual content down from Spotify's top navigation.
-   Apply spacing to the main-view's inner scroll container too, because
-   Spotify can place that container inside the grid panel. */
+/* The only offset between the top navigation and page content: ONE 4px step.
+   (This used to be applied three times - .mg-main, its first child and
+   .main-view-container - which stacked to 12px before Spotify's own spacing.)
+   theme.js also measures the gap on every page and tags empty spacers
+   (.mg-gapkill) and oversized top paddings (.mg-padkill) it finds above the content. */
 .mg-main {
   padding-top: 4px !important;
   box-sizing: border-box;
 }
 
-.mg-main > :first-child,
-.mg-main .main-view-container {
+.mg-gapkill {
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.mg-padkill {
   padding-top: 4px !important;
-  box-sizing: border-box;
+  margin-top: 0 !important;
 }
 
 /* every panel is see-through: no cards, no floating boxes */
@@ -164,7 +173,7 @@ div:has(> .Root__lyrics-cinema) {
   gap: 14px;
   width: 100% !important;
   height: auto !important;
-  padding: 40px 22px 16px !important;   /* top gap clears window buttons */
+  padding: 12px 22px 16px !important;   /* the global nav above already clears the window buttons */
   box-sizing: border-box;
 }
 
@@ -178,6 +187,11 @@ div:has(> .Root__lyrics-cinema) {
 }
 
 /* ---- cover + text ---- */
+:root { --mg-cover: 200px; }
+@supports (width: 1cqw) {
+  /* scale with the sidebar width instead of overflowing it */
+  .mg-widget { container-type: inline-size; --mg-cover: clamp(132px, 74cqw, 220px); }
+}
 .mg-widget {
   display: flex !important;
   flex-wrap: wrap;
@@ -210,7 +224,7 @@ div:has(> .Root__lyrics-cinema) {
 /* the flex item that sits directly in the widget takes a full row */
 .mg-widget > .mg-cchain {
   flex: 0 0 100% !important;
-  padding: 12px 0 !important;      /* room for the 220px ring around the 200px cover */
+  padding: 12px 0 !important;      /* room for the ring (cover + 20px) */
   margin-bottom: 6px !important;
 }
 
@@ -218,15 +232,19 @@ div:has(> .Root__lyrics-cinema) {
   position: relative !important;
   inset: auto !important;
   z-index: 1;
-  width: 200px !important;
-  height: 200px !important;
+  width: var(--mg-cover) !important;
+  height: var(--mg-cover) !important;
   max-width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: cover;
+  object-position: center;
+  image-rendering: auto;            /* never pixelated; no filters touch the cover */
+  filter: none !important;
   border-radius: 50% !important;
   box-shadow: 0 0 0 3px #141416;
   animation: mg-spin 28s linear infinite;
   animation-play-state: paused;
+  will-change: transform;
 }
 
 /* the cover's direct parent: any images in it overlap in one cell */
@@ -515,7 +533,7 @@ input[type="range"] { accent-color: var(--mg-blue); }
   content: "";
   position: absolute;
   left: 50%; top: 50%;
-  width: 220px; height: 220px;
+  width: calc(var(--mg-cover) + 20px); height: calc(var(--mg-cover) + 20px);
   border-radius: 50%;
   background: conic-gradient(from 0deg, var(--mg-stops));
   box-shadow: 0 0 36px rgba(var(--mg-a1-rgb), .6);
@@ -529,6 +547,7 @@ input[type="range"] { accent-color: var(--mg-blue); }
   background-image: var(--mg-rgb) !important;
   background-size: 200% 100% !important;
   animation: mg-flow 5s linear infinite;
+  transition: transform .3s linear, width .3s linear;   /* glide between Spotify's 1-second updates */
 }
 
 /* play buttons: violet→cyan fill with a spinning RGB ring (same look everywhere) */
@@ -585,6 +604,7 @@ input[type="range"] { accent-color: var(--mg-blue); }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .mg-widget.mg-trackin { animation: none !important; }
   .mg-gn::after, .mg-ls::after, .mg-main::after,
   .mg-widget > .mg-cchain:has(.mg-cimg)::before, .mg-fill,
   .mg-pm [data-testid="control-button-playpause"], .main-playButton-PlayButton,
@@ -609,3 +629,61 @@ input[type="range"] { accent-color: var(--mg-blue); }
 }
 .main-buttons-button.main-button-primary *,
 .main-button-primary * { color: #fff !important; }
+
+
+/* ===============================================================
+   7. PLAYER BACKGROUND, TRACK TRANSITION, CONTROLS
+   =============================================================== */
+/* blurred cover behind the player (two layers cross-fade on song change; made by theme.js) */
+.mg-npb-bg {
+  position: absolute !important;
+  inset: 0 !important;
+  height: auto !important;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: transparent !important;
+}
+.mg-npb-bg i {
+  position: absolute;
+  inset: -48px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(38px) saturate(1.35);   /* blur lives ONLY on this background layer */
+  transform: scale(1.15);
+  opacity: 0;
+  transition: opacity .8s ease;
+}
+.mg-npb-bg i.on { opacity: .42; }
+.mg-npb-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(20, 20, 22, .15), rgba(20, 20, 22, .78));
+}
+.mg-npb > *:not(.mg-npb-bg) { position: relative; z-index: 1; }
+
+/* soft fade/slide when the song changes */
+@keyframes mg-trackin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.mg-widget.mg-trackin { animation: mg-trackin .45s ease both; }
+
+/* transport + utility buttons pick up the palette */
+.mg-npb button svg { transition: color .15s ease, fill .15s ease, filter .15s ease; }
+.mg-npb button:hover svg {
+  color: var(--mg-a2) !important;
+  fill: var(--mg-a2) !important;
+  filter: drop-shadow(0 0 6px rgba(var(--mg-a2-rgb), .7));
+}
+.mg-npb button[aria-checked="true"],
+.mg-npb button[aria-checked="mixed"],
+.main-shuffleButton-button.main-shuffleButton-active,
+.main-repeatButton-active,
+.main-repeatButton-activeOnce {
+  color: var(--mg-a2) !important;
+}
+.mg-npb button[aria-checked="true"] svg,
+.mg-npb button[aria-checked="mixed"] svg {
+  color: var(--mg-a2) !important;
+  fill: var(--mg-a2) !important;
+}
+.mg-npb button:focus-visible { outline: 2px solid var(--mg-a2); outline-offset: 2px; border-radius: 50%; }
