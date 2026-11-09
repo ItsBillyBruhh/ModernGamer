@@ -67,7 +67,10 @@ function mgImgUrl(u) {
 
 function mgHiRes(u) {
   u = mgImgUrl(u);
-  const m = /^(https:\/\/i\.scdn\.co\/image\/)([0-9a-f]{16})([0-9a-f]{24})(\?.*)?$/i.exec(u);
+  // playlist mosaics put the size in the path: .../300/<ids> -> .../640/<ids>
+  if (/^https:\/\/mosaic\.scdn\.co\/(60|64|120|128|300)\//.test(u)) return u.replace(/\/(60|64|120|128|300)\//, '/640/');
+  // any Spotify image host (i.scdn.co, image-cdn-*.spotifycdn.com, ...): .../image/<40 hex>
+  const m = /^(https:\/\/[^/]+\/image\/)([0-9a-f]{16})([0-9a-f]{24})(\?.*)?$/i.exec(u);
   if (!m) return u;
   const up = MG_ART_UP[m[2].toLowerCase()];
   return up ? m[1] + up + m[3] : u;
@@ -132,11 +135,27 @@ function mgUpgradeImg(img) {
   t.src = hi;
 }
 
+/* The docked cover: take the large image straight from the player data, whatever host or
+   size Spotify put in the <img>. Falls back to upgrading the <img>'s own URL. */
+function mgApplyTrackArt(img) {
+  const art = mgTrack().art;
+  const cur = img.currentSrc || img.src;
+  if (!art || cur === art || img._mgArt === art) { if (!art) mgUpgradeImg(img); return; }
+  img._mgArt = art;
+  const t = new Image();
+  t.decoding = 'async';
+  t.onload = () => {
+    if (img._mgArt === art && img.isConnected) { img.removeAttribute('srcset'); img.src = art; }
+  };
+  t.onerror = () => { img._mgArt = ''; mgUpgradeImg(img); };
+  t.src = art;
+}
+
 /* page headers / cards that are shown larger than their file: upgrade those too */
 function mgUpgradeMain(main) {
   if (!main) return;
   const dpr = window.devicePixelRatio || 1;
-  for (const img of main.querySelectorAll('img[src*="i.scdn.co/image/"]')) {
+  for (const img of main.querySelectorAll('img[src*="/image/ab67"], img[src*="mosaic.scdn.co"]')) {
     if (img._mgSeen === img.src || img.clientWidth < 100) continue;
     img._mgSeen = img.src;
     if (img.naturalWidth && img.clientWidth * dpr <= img.naturalWidth * 1.05) continue;
@@ -225,7 +244,7 @@ function mgTrackSwap() {
   });
   const bg = document.querySelector('.mg-npb-bg');
   if (bg) mgSetPlayerBg(bg);
-  document.querySelectorAll('.mg-cimg').forEach(mgUpgradeImg);
+  document.querySelectorAll('.mg-cimg').forEach(mgApplyTrackArt);
 }
 
 /* spin the cover while music plays. Uses the player state, not the (translated) button label */
@@ -252,6 +271,16 @@ function mgVisibleContent(el) {
   return false;
 }
 
+/* top bars, sticky play buttons and hidden helpers sit on top of the page; they are not content */
+function mgOffFlow(el, main) {
+  for (let n = el; n && n !== main; n = n.parentElement) {
+    const cs = getComputedStyle(n);
+    if (cs.position === 'sticky' || cs.position === 'fixed' || cs.position === 'absolute') return true;
+    if (parseFloat(cs.opacity) === 0 || cs.visibility === 'hidden' || n.getAttribute('aria-hidden') === 'true') return true;
+  }
+  return false;
+}
+
 function mgMeasureGap(main) {
   const mr = main.getBoundingClientRect();
   const topBar = main.querySelector('[class*="topBar-container"], [class*="topBar-topbar"]');
@@ -264,7 +293,7 @@ function mgMeasureGap(main) {
     if (el.closest('.mg-page') || !mgVisibleContent(el)) continue;
     const r = el.getBoundingClientRect();
     if (r.width < 8 || r.height < 8 || r.bottom <= mr.top) continue;
-    if (getComputedStyle(el).position === 'fixed') continue;
+    if (mgOffFlow(el, main)) continue;
     return { el, gap: r.top - mr.top, allowed, mr };
   }
   return null;
@@ -276,7 +305,7 @@ function mgFixTopGap(main, log) {
   main.querySelectorAll('.mg-gapkill').forEach((n) => {
     if (n.querySelector('img, svg, button, input') || n.textContent.trim()) n.classList.remove('mg-gapkill');
   });
-  for (let pass = 0; pass < 3; pass++) {
+  for (let pass = 0; pass < 4; pass++) {
     const m = mgMeasureGap(main);
     if (!m || m.gap <= m.allowed) return;
     let changed = false;
@@ -298,6 +327,15 @@ function mgFixTopGap(main, log) {
         }
       }
     }
+    if (!changed) {                    // nothing to trim: a tall header box with its content pushed to the bottom
+      const top = m.el.getBoundingClientRect().top;
+      for (let n = m.el.parentElement; n && n !== main; n = n.parentElement) {
+        if (top - n.getBoundingClientRect().top > 12 && !n.classList.contains('mg-heightkill')) {
+          n.classList.add('mg-heightkill'); changed = true;
+          if (log) console.debug('[Modern Gamer] released fixed height on', n);
+        }
+      }
+    }
     if (!changed) return;
   }
 }
@@ -311,7 +349,7 @@ function mgDebugGap() {
   const rows = [];
   for (let n = m.el; n && n !== main.parentElement; n = n.parentElement) {
     const cs = getComputedStyle(n);
-    rows.push({ el: n.tagName.toLowerCase() + '.' + String(n.className).split(' ').slice(0, 2).join('.'), paddingTop: cs.paddingTop, marginTop: cs.marginTop, top: Math.round(n.getBoundingClientRect().top - m.mr.top) });
+    rows.push({ el: n.tagName.toLowerCase() + '.' + String(n.className).split(' ').slice(0, 2).join('.'), paddingTop: cs.paddingTop, marginTop: cs.marginTop, height: cs.height, minHeight: cs.minHeight, position: cs.position, top: Math.round(n.getBoundingClientRect().top - m.mr.top) });
   }
   console.log('[Modern Gamer] gap above first content: ' + Math.round(m.gap) + 'px (allowed ' + Math.round(m.allowed) + 'px)', m.el);
   console.table(rows);
@@ -379,7 +417,7 @@ function tagPlayer(bar) {
   (covers.length ? covers : imgs).forEach((img) => {
     mgAdd(img, 'mg-cimg');
     img.decoding = 'async';
-    mgUpgradeImg(img);
+    mgApplyTrackArt(img);
     if (img.parentElement && img.parentElement !== widget) mgAdd(img.parentElement, 'mg-cwrap');
     for (let n = img.parentElement; n && n !== widget; n = n.parentElement) {
       mgAdd(n, 'mg-cchain');
@@ -1645,7 +1683,15 @@ function startLyrics(top) {
   });
 }
 
-window.ModernGamer = { hiRes: mgHiRes, parseLrc: mgParseLrc, lineAt: mgLineAt, debugGap: mgDebugGap };
+/* console helper: ModernGamer.debugArt() shows where the cover comes from and what we asked for */
+function mgDebugArt() {
+  const img = document.querySelector('.mg-cimg');
+  const t = mgTrack();
+  console.log('[Modern Gamer] cover <img>:', img && (img.currentSrc || img.src), '| natural width:', img && img.naturalWidth,
+    '| shown at:', img && img.offsetWidth + 'px', '\nplayer data art:', t.art, '\nhi-res of <img>:', img && mgHiRes(img.currentSrc || img.src));
+}
+
+window.ModernGamer = { hiRes: mgHiRes, parseLrc: mgParseLrc, lineAt: mgLineAt, debugGap: mgDebugGap, debugArt: mgDebugArt };
 
 waitForElement([MG_TOP], ([top]) => {
   let refs = tagPanels(top);
@@ -1712,7 +1758,7 @@ waitForElement([MG_TOP], ([top]) => {
 
   // art swaps: Spotify rewrites the cover's src on every track change, so upgrade it again
   new MutationObserver((muts) => {
-    for (const m of muts) if (m.target.classList && m.target.classList.contains('mg-cimg')) mgUpgradeImg(m.target);
+    for (const m of muts) if (m.target.classList && m.target.classList.contains('mg-cimg')) mgApplyTrackArt(m.target);
   }).observe(top, { attributes: true, attributeFilter: ['src', 'srcset'], subtree: true });
 });
 

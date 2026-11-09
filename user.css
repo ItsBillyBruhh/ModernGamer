@@ -56,6 +56,12 @@ div:has(> .Root__lyrics-cinema) {
   overflow: hidden;
 }
 
+.mg-heightkill {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+
 .mg-padkill {
   padding-top: 4px !important;
   margin-top: 0 !important;
