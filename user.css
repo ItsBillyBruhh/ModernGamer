@@ -42,7 +42,7 @@ div:has(> .Root__lyrics-cinema) {
    Apply spacing to the main-view's inner scroll container too, because
    Spotify can place that container inside the grid panel. */
 .mg-main {
-  padding-top: 64px !important;
+  padding-top: 15px !important;
   box-sizing: border-box;
 }
 
