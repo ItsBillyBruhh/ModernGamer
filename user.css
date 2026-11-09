@@ -372,7 +372,7 @@ div:has(> .Root__lyrics-cinema) {
 .main-entityHeader-container.main-entityHeader-nonWrapped {
   height: auto !important;
   min-height: 0 !important;
-  padding-top: 64px !important;
+  padding-top: 8px !important;
   padding-bottom: 12px !important;
   align-items: flex-end;
 }
