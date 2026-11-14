@@ -703,100 +703,80 @@ function mgInjectThemeCss() {
 mgInjectThemeCss();         // ...and the rules that make every rainbow spot follow it
 
 
-/* Unified play-button system: every Spotify play control copies the player button's
-   appearance and hover/active behavior. Native Spotify click handling is untouched. */
-(function mgInstallUnifiedPlayButtons() {
-  if (document.getElementById('mg-unified-play-buttons')) return;
+/* Final Spotify quick-play compatibility layer (Spotify 1.3.9+).
+   Spotify fades the OUTER card overlay, not just the button; keep that overlay visible.
+   The button itself stays transparent in every state, so no Spotify-green hover fill. */
+(function mgInstallQuickPlayFix() {
+  if (document.getElementById('mg-quickplay-final-fix')) return;
   const st = document.createElement('style');
-  st.id = 'mg-unified-play-buttons';
+  st.id = 'mg-quickplay-final-fix';
   st.textContent = `
-    html body :is(
-      .mg-pm [data-testid="control-button-playpause"],
-      [data-testid="control-button-playpause"],
-      [data-testid="play-button"],
-      button[data-testid="play-button"],
-      .main-playButton-PlayButton,
-      .main-playPauseButton-button,
-      .main-card-PlayButtonContainer button
-    ) {
-      box-sizing: border-box !important;
-      width: 52px !important;
-      height: 52px !important;
-      min-width: 52px !important;
-      min-height: 52px !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      border: 0 !important;
-      border-radius: 50% !important;
-      background: var(--spice-button) !important;
-      background-color: var(--spice-button) !important;
-      background-image: none !important;
-      color: #fff !important;
-      -webkit-text-fill-color: #fff !important;
-      box-shadow: 0 6px 22px rgba(var(--mg-a1-rgb), .55) !important;
-      filter: none !important;
+    html body .main-card-card .main-card-PlayButtonContainer,
+    html body .main-card-PlayButtonContainer,
+    html body .main-playButton-PlayButtonContainer,
+    html body .main-playButton-PlayButton,
+    html body [data-testid="play-button"] {
       opacity: 1 !important;
       visibility: visible !important;
-      transform: none;
-      transition: transform .15s ease, background-color .15s ease, box-shadow .15s ease !important;
-      cursor: pointer !important;
+      transform: none !important;
+      pointer-events: auto !important;
     }
-    html body :is(
-      .mg-pm [data-testid="control-button-playpause"],
-      [data-testid="control-button-playpause"],
-      [data-testid="play-button"],
-      button[data-testid="play-button"],
-      .main-playButton-PlayButton,
-      .main-playPauseButton-button,
-      .main-card-PlayButtonContainer button
-    ):is(:hover, :focus-visible) {
-      background: var(--spice-button-active) !important;
-      background-color: var(--spice-button-active) !important;
+    html body .main-card-card .main-card-PlayButtonContainer button,
+    html body .main-card-PlayButtonContainer button,
+    html body .main-playButton-PlayButton,
+    html body button[data-testid="play-button"],
+    html body [data-testid="play-button"] {
+      background: transparent !important;
+      background-color: transparent !important;
       background-image: none !important;
-      transform: scale(1.07) !important;
+      border: 0 !important;
+      box-shadow: none !important;
+      filter: none !important;
+      color: #fff !important;
+      -webkit-text-fill-color: #fff !important;
+      opacity: 1 !important;
+      visibility: visible !important;
     }
-    html body :is(
-      .mg-pm [data-testid="control-button-playpause"],
-      [data-testid="control-button-playpause"],
-      [data-testid="play-button"],
-      button[data-testid="play-button"],
-      .main-playButton-PlayButton,
-      .main-playPauseButton-button,
-      .main-card-PlayButtonContainer button
-    ):active {
-      transform: scale(.98) !important;
+    html body .main-card-card .main-card-PlayButtonContainer button:hover,
+    html body .main-card-PlayButtonContainer button:hover,
+    html body .main-playButton-PlayButton:hover,
+    html body button[data-testid="play-button"]:hover,
+    html body [data-testid="play-button"]:hover,
+    html body button[data-testid="play-button"]:focus-visible,
+    html body [data-testid="play-button"]:focus-visible,
+    html body button[data-testid="play-button"]:active,
+    html body [data-testid="play-button"]:active {
+      background: transparent !important;
+      background-color: transparent !important;
+      background-image: none !important;
+      border: 0 !important;
+      box-shadow: none !important;
+      filter: none !important;
+      color: #fff !important;
+      -webkit-text-fill-color: #fff !important;
     }
-    html body :is(
-      .mg-pm [data-testid="control-button-playpause"],
-      [data-testid="control-button-playpause"],
-      [data-testid="play-button"],
-      button[data-testid="play-button"],
-      .main-playButton-PlayButton,
-      .main-playPauseButton-button,
-      .main-card-PlayButtonContainer button
-    ) svg,
-    html body :is(
-      .mg-pm [data-testid="control-button-playpause"],
-      [data-testid="control-button-playpause"],
-      [data-testid="play-button"],
-      button[data-testid="play-button"],
-      .main-playButton-PlayButton,
-      .main-playPauseButton-button,
-      .main-card-PlayButtonContainer button
-    ) svg * {
+    html body .main-card-PlayButtonContainer svg,
+    html body .main-playButton-PlayButton svg,
+    html body button[data-testid="play-button"] svg,
+    html body [data-testid="play-button"] svg,
+    html body .main-card-PlayButtonContainer svg *,
+    html body .main-playButton-PlayButton svg *,
+    html body button[data-testid="play-button"] svg *,
+    html body [data-testid="play-button"] svg * {
+      display: block !important;
+      opacity: 1 !important;
+      visibility: visible !important;
       color: #fff !important;
       fill: #fff !important;
       stroke: #fff !important;
+    }
+    /* Keep the card overlay itself from fading out before hover. */
+    html body .main-card-card .main-card-PlayButtonContainer {
       opacity: 1 !important;
       visibility: visible !important;
+      transform: none !important;
     }
-    html body .main-card-PlayButtonContainer,
-    html body .main-playButton-PlayButtonContainer {
-      opacity: 1 !important;
-      visibility: visible !important;
-      pointer-events: auto !important;
-    }
+    /* The right dock must not create or paint a second artwork layer. */
     html body .Root__now-playing-bar.mg-npb .mg-npb-bg,
     html body .Root__now-playing-bar.mg-npb .mg-npb-bg * {
       display: none !important;
