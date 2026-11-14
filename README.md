@@ -63,3 +63,8 @@ Targets Spotify 1.3.8.620 and 1.3.9.2055, including the `now-playing-widget-v2` 
 ## Lyrics experience
 
 The built-in Lyrics page retrieves available lyrics from LRCLIB. Timed lyrics follow playback, the active line receives an animated RGB highlight, and lyric lines transition smoothly as the song progresses. Plain lyrics are displayed without playback synchronization. Instrumental tracks and unavailable lyrics are identified rather than guessed. The page respects the operating system's reduced-motion preference.
+
+
+### Spotify 1.3.9 UI fixes
+- Softened the RGB separators to avoid harsh, misplaced-looking edges.
+- Added a CSS-drawn play glyph for Spotify home/card quick-play buttons when the updated UI omits its SVG icon.

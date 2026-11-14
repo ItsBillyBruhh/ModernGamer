@@ -103,6 +103,16 @@ div:has(> .Root__lyrics-cinema) {
 .mg-rs,
 .mg-npb { border-left: 1px solid var(--mg-line) !important; }
 
+/* The player column's top edge was being painted as a stray accent line.
+   Keep the left divider/layout untouched; remove only the top edge on the
+   player and the lower right-sidebar column. */
+.mg-npb,
+.mg-rs {
+  border-top: 0 !important;
+  border-block-start: 0 !important;
+  outline: 0 !important;
+}
+
 .mg-rs { height: auto !important; min-height: 100% !important; }
 
 /* solid backgrounds inside panels that would otherwise show */
@@ -494,7 +504,8 @@ input[type="range"] { accent-color: var(--mg-blue); }
   to   { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
-/* RGB lines: a strip along the bottom of the top nav + two vertical dividers. */
+/* Subtle RGB separators: keep them inside the layout and prevent the
+   bright 2px glow from reading as broken borders on Spotify's new UI. */
 .mg-ls, .mg-main, .mg-npb { position: relative; }
 .mg-ls { border-right: 0 !important; }
 .mg-rs, .mg-npb { border-left: 0 !important; }
@@ -504,11 +515,12 @@ input[type="range"] { accent-color: var(--mg-blue); }
   content: "";
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  height: 2px;
+  height: 1px;
   background: var(--mg-rgb);
   background-size: 200% 100%;
-  animation: mg-flow 6s linear infinite;
-  box-shadow: 0 0 12px rgba(var(--mg-a1-rgb), .6);
+  animation: mg-flow 10s linear infinite;
+  opacity: .32;
+  box-shadow: none;
   pointer-events: none;
   z-index: 6;
 }
@@ -527,11 +539,8 @@ input[type="range"] { accent-color: var(--mg-blue); }
   position: absolute;
   top: 0; bottom: 0; right: 0;
   width: 1px;
-  background: var(--mg-rgb-v);
-  background-size: 100% 200%;
-  background-attachment: fixed;
-  animation: mg-flowv 8s linear infinite;
-  opacity: .5;
+  background: rgba(255, 255, 255, .10);
+  opacity: .7;
   pointer-events: none;
   z-index: 6;
 }
@@ -576,6 +585,33 @@ input[type="range"] { accent-color: var(--mg-blue); }
   box-shadow: 0 6px 24px rgba(var(--mg-a1-rgb), .55) !important;
   filter: none !important;
   border-radius: 50% !important;
+}
+
+/* Spotify 1.3.9 home cards sometimes render the quick-play circle but omit
+   its SVG glyph. Draw a crisp play triangle in the button itself instead. */
+.main-card-PlayButtonContainer button,
+button[data-testid="play-button"] {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.main-card-PlayButtonContainer button svg,
+button[data-testid="play-button"] svg {
+  display: none !important;
+}
+.main-card-PlayButtonContainer button::after,
+button[data-testid="play-button"]::after {
+  content: "";
+  display: block;
+  width: 0;
+  height: 0;
+  margin-left: 3px;
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-left: 11px solid #fff;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, .35));
+  pointer-events: none;
 }
 
 /* white icon on the gradient (Spotify's default is a dark icon) */
