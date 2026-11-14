@@ -468,7 +468,7 @@ function tagPlayer(bar) {
 
   tagFill(bar.querySelector('.mg-prog'));
   tagFill(bar.querySelector('.mg-vol'));
-  mgEnsurePlayerBg(bar);
+  // Player artwork background intentionally disabled in this theme build.
 }
 
 /* ---------- no panels: flatten boxed cards in the right sidebar ---------- */

@@ -827,3 +827,87 @@ button[data-testid="play-button"] svg,
   color: #fff !important;
   fill: #fff !important;
 }
+
+
+/* ===============================================================
+   10. FINAL OVERRIDES: NO PLAYER BACKDROP + ALWAYS-VISIBLE PLAY ICONS
+   =============================================================== */
+/* Do not paint any album artwork, tint, or pseudo-element behind the dock. */
+.Root__now-playing-bar.mg-npb,
+.Root__now-playing-bar.mg-npb > aside,
+.Root__now-playing-bar.mg-npb .mg-wrap,
+.Root__now-playing-bar.mg-npb [data-testid="now-playing-bar"],
+.Root__now-playing-bar.mg-npb .mg-npb-bg,
+.Root__now-playing-bar.mg-npb .mg-npb-bg * {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+}
+.Root__now-playing-bar.mg-npb .mg-npb-bg { display: none !important; }
+.Root__now-playing-bar.mg-npb::before,
+.Root__now-playing-bar.mg-npb::after,
+.Root__now-playing-bar.mg-npb > aside::before,
+.Root__now-playing-bar.mg-npb > aside::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Spotify hides quick-play buttons until hover by fading their wrapper.
+   Keep the button and its containing quick-play surface visible at rest. */
+:where(.main-playButton-PlayButton, button[data-testid="play-button"],
+       [data-testid="play-button"], .main-card-PlayButtonContainer button,
+       .main-playPauseButton-button) {
+  opacity: 1 !important;
+  visibility: visible !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+}
+:where(.main-playButton-PlayButton, button[data-testid="play-button"],
+       [data-testid="play-button"], .main-card-PlayButtonContainer button,
+       .main-playPauseButton-button):is(:hover, :focus, :focus-visible, :active) {
+  opacity: 1 !important;
+  visibility: visible !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+:where(.main-playButton-PlayButton, button[data-testid="play-button"],
+       [data-testid="play-button"], .main-card-PlayButtonContainer button,
+       .main-playPauseButton-button) svg,
+:where(.main-playButton-PlayButton, button[data-testid="play-button"],
+       [data-testid="play-button"], .main-card-PlayButtonContainer button,
+       .main-playPauseButton-button) svg * {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  color: #fff !important;
+  fill: #fff !important;
+  stroke: #fff !important;
+}
+/* Also defeat Spotify's hidden/faded quick-play wrapper and green hover layer. */
+:where(div, span, a):has(> .main-playButton-PlayButton),
+:where(div, span, a):has(> button[data-testid="play-button"]),
+:where(div, span, a):has(> [data-testid="play-button"]),
+:where(div, span, a):has(.main-playButton-PlayButton),
+:where(div, span, a):has(button[data-testid="play-button"]),
+:where(div, span, a):has([data-testid="play-button"]) {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+:where(.main-playButton-PlayButton, button[data-testid="play-button"],
+       [data-testid="play-button"], .main-card-PlayButtonContainer button)::before,
+:where(.main-playButton-PlayButton, button[data-testid="play-button"],
+       [data-testid="play-button"], .main-card-PlayButtonContainer button)::after {
+  content: none !important;
+  display: none !important;
+  background: transparent !important;
+}
