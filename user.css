@@ -159,6 +159,8 @@ div:has(> .Root__lyrics-cinema) {
   min-width: max(100%, 340px) !important;
   max-width: none !important;
   box-sizing: border-box;
+  position: relative !important; /* anchor the blurred cover to this panel, not the page */
+  isolation: isolate; /* keep the artwork behind controls but above the page canvas */
   overflow: hidden;
   z-index: 1;
   background: radial-gradient(280px 230px at 50% 30%, rgba(255, 255, 255, .05), transparent 72%) !important;
@@ -587,26 +589,37 @@ input[type="range"] { accent-color: var(--mg-blue); }
   border-radius: 50% !important;
 }
 
-/* Spotify 1.3.9 home cards sometimes render the quick-play circle but omit
-   its SVG glyph. Draw a crisp play triangle in the button itself instead. */
-.main-card-PlayButtonContainer button,
+/* Keep Spotify's native quick-play glyph visible. Earlier CSS hid these SVGs,
+   but the replacement triangle missed some 1.3.9 button variants. */
+.main-card-PlayButtonContainer :is(button, [role="button"]),
 button[data-testid="play-button"] {
   position: relative !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
 }
-.main-card-PlayButtonContainer button svg,
+.main-card-PlayButtonContainer :is(button, [role="button"]) svg,
 button[data-testid="play-button"] svg {
-  display: none !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 20px !important;
+  height: 20px !important;
+  color: #fff !important;
+  fill: #fff !important;
+  z-index: 2 !important;
 }
-.main-card-PlayButtonContainer button::after,
-button[data-testid="play-button"]::after {
+/* Fallback only for quick-play controls that genuinely have no SVG icon. */
+.main-card-PlayButtonContainer :is(button, [role="button"]):not(:has(svg))::after,
+button[data-testid="play-button"]:not(:has(svg))::after {
   content: "";
-  display: block;
+  position: absolute !important;
+  z-index: 5 !important;
+  left: 50% !important;
+  top: 50% !important;
   width: 0;
   height: 0;
-  margin-left: 3px;
+  transform: translate(-35%, -50%);
   border-top: 7px solid transparent;
   border-bottom: 7px solid transparent;
   border-left: 11px solid #fff;
@@ -683,6 +696,9 @@ button[data-testid="play-button"]::after {
 .mg-npb-bg {
   position: absolute !important;
   inset: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  z-index: 0 !important;
   height: auto !important;
   z-index: 0;
   overflow: hidden;
