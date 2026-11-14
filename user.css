@@ -62,8 +62,11 @@ div:has(> .Root__lyrics-cinema) {
   max-height: none !important;
 }
 
+/* Only .mg-main owns the intentional 4px page offset. Any nested Spotify
+   wrapper tagged by the gap fixer must lose its extra top padding entirely;
+   otherwise several wrappers can each add another 4px and recreate the gap. */
 .mg-padkill {
-  padding-top: 4px !important;
+  padding-top: 0 !important;
   margin-top: 0 !important;
 }
 
