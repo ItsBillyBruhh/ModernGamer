@@ -37,36 +37,6 @@ div:has(> .Root__lyrics-cinema) {
   grid-template-rows: auto auto auto 1fr !important;
 }
 
-
-/* The only offset between the top navigation and page content: ONE 4px step.
-   (This used to be applied three times - .mg-main, its first child and
-   .main-view-container - which stacked to 12px before Spotify's own spacing.)
-   theme.js also measures the gap on every page and tags empty spacers
-   (.mg-gapkill) and oversized top paddings (.mg-padkill) it finds above the content. */
-.mg-main {
-  padding-top: 4px !important;
-  box-sizing: border-box;
-}
-
-.mg-gapkill {
-  height: 0 !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  overflow: hidden;
-}
-
-.mg-heightkill {
-  height: auto !important;
-  min-height: 0 !important;
-  max-height: none !important;
-}
-
-.mg-padkill {
-  padding-top: 4px !important;
-  margin-top: 0 !important;
-}
-
 /* every panel is see-through: no cards, no floating boxes */
 .mg-ls, .mg-main, .mg-rs, .mg-gn,
 .Root__nav-bar, .Root__main-view, .Root__right-sidebar {
@@ -179,7 +149,7 @@ div:has(> .Root__lyrics-cinema) {
   gap: 14px;
   width: 100% !important;
   height: auto !important;
-  padding: 12px 22px 16px !important;   /* the global nav above already clears the window buttons */
+  padding: 40px 22px 16px !important;   /* top gap clears window buttons */
   box-sizing: border-box;
 }
 
@@ -193,11 +163,6 @@ div:has(> .Root__lyrics-cinema) {
 }
 
 /* ---- cover + text ---- */
-:root { --mg-cover: 200px; }
-@supports (width: 1cqw) {
-  /* scale with the sidebar width instead of overflowing it */
-  .mg-widget { container-type: inline-size; --mg-cover: clamp(132px, 74cqw, 220px); }
-}
 .mg-widget {
   display: flex !important;
   flex-wrap: wrap;
@@ -230,7 +195,7 @@ div:has(> .Root__lyrics-cinema) {
 /* the flex item that sits directly in the widget takes a full row */
 .mg-widget > .mg-cchain {
   flex: 0 0 100% !important;
-  padding: 12px 0 !important;      /* room for the ring (cover + 20px) */
+  padding: 12px 0 !important;      /* room for the 220px ring around the 200px cover */
   margin-bottom: 6px !important;
 }
 
@@ -238,19 +203,16 @@ div:has(> .Root__lyrics-cinema) {
   position: relative !important;
   inset: auto !important;
   z-index: 1;
-  width: var(--mg-cover) !important;
-  height: var(--mg-cover) !important;
+  width: 200px !important;
+  height: 200px !important;
   max-width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: cover;
-  object-position: center;
-  image-rendering: auto;            /* never pixelated; no filters touch the cover */
-  filter: none !important;
+  image-rendering: auto;
   border-radius: 50% !important;
   box-shadow: 0 0 0 3px #141416;
   animation: mg-spin 28s linear infinite;
   animation-play-state: paused;
-  will-change: transform;
 }
 
 /* the cover's direct parent: any images in it overlap in one cell */
@@ -396,7 +358,7 @@ div:has(> .Root__lyrics-cinema) {
 .main-entityHeader-container.main-entityHeader-nonWrapped {
   height: auto !important;
   min-height: 0 !important;
-  padding-top: 4px !important;
+  padding-top: 8px !important;
   padding-bottom: 12px !important;
   align-items: flex-end;
 }
@@ -539,7 +501,7 @@ input[type="range"] { accent-color: var(--mg-blue); }
   content: "";
   position: absolute;
   left: 50%; top: 50%;
-  width: calc(var(--mg-cover) + 20px); height: calc(var(--mg-cover) + 20px);
+  width: 220px; height: 220px;
   border-radius: 50%;
   background: conic-gradient(from 0deg, var(--mg-stops));
   box-shadow: 0 0 36px rgba(var(--mg-a1-rgb), .6);
@@ -553,7 +515,6 @@ input[type="range"] { accent-color: var(--mg-blue); }
   background-image: var(--mg-rgb) !important;
   background-size: 200% 100% !important;
   animation: mg-flow 5s linear infinite;
-  transition: transform .3s linear, width .3s linear;   /* glide between Spotify's 1-second updates */
 }
 
 /* play buttons: violet→cyan fill with a spinning RGB ring (same look everywhere) */
@@ -610,7 +571,6 @@ input[type="range"] { accent-color: var(--mg-blue); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mg-widget.mg-trackin { animation: none !important; }
   .mg-gn::after, .mg-ls::after, .mg-main::after,
   .mg-widget > .mg-cchain:has(.mg-cimg)::before, .mg-fill,
   .mg-pm [data-testid="control-button-playpause"], .main-playButton-PlayButton,
@@ -636,60 +596,105 @@ input[type="range"] { accent-color: var(--mg-blue); }
 .main-buttons-button.main-button-primary *,
 .main-button-primary * { color: #fff !important; }
 
-
 /* ===============================================================
-   7. PLAYER BACKGROUND, TRACK TRANSITION, CONTROLS
+   8. LYRICS — cleaner typography, smooth focus and subtle motion
+   Works with Spotify's native lyrics view; does not replace or fake lyrics.
    =============================================================== */
-/* blurred cover behind the player (two layers cross-fade on song change; made by theme.js) */
-.mg-npb-bg {
-  position: absolute !important;
-  inset: 0 !important;
-  height: auto !important;
-  z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
+:root {
+  --mg-lyrics-dim: rgba(255, 255, 255, .38);
+  --mg-lyrics-muted: rgba(255, 255, 255, .68);
+  --mg-lyrics-glow: rgba(var(--mg-a1-rgb), .22);
+}
+
+/* Keep Spotify's lyrics canvas consistent with the Modern Gamer background. */
+.Root__lyrics-cinema,
+.lyrics-lyrics-background,
+[data-testid="lyrics-container"] {
   background: transparent !important;
+  background-color: transparent !important;
 }
-.mg-npb-bg i {
-  position: absolute;
-  inset: -48px;
-  background-size: cover;
-  background-position: center;
-  filter: blur(38px) saturate(1.35);   /* blur lives ONLY on this background layer */
-  transform: scale(1.15);
-  opacity: 0;
-  transition: opacity .8s ease;
-}
-.mg-npb-bg i.on { opacity: .42; }
-.mg-npb-bg::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(20, 20, 22, .15), rgba(20, 20, 22, .78));
-}
-.mg-npb > *:not(.mg-npb-bg) { position: relative; z-index: 1; }
 
-/* soft fade/slide when the song changes */
-@keyframes mg-trackin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.mg-widget.mg-trackin { animation: mg-trackin .45s ease both; }
+/* Lyrics rows: larger, more breathable, with a gentle entrance. */
+.lyrics-lyricsContainer-LyricsContainer [class*="lyrics-lyricsRow"],
+[data-testid="lyrics-container"] [class*="lyrics-lyricsRow"] {
+  color: var(--mg-lyrics-dim) !important;
+  font-size: clamp(25px, 2.15vw, 39px) !important;
+  font-weight: 750 !important;
+  line-height: 1.28 !important;
+  letter-spacing: -.035em !important;
+  padding-block: 9px !important;
+  transform: scale(.985);
+  transform-origin: left center;
+  opacity: .56;
+  filter: blur(.15px);
+  transition:
+    color .42s ease,
+    opacity .42s ease,
+    transform .55s cubic-bezier(.2,.75,.25,1),
+    text-shadow .45s ease,
+    filter .45s ease;
+  will-change: transform, opacity;
+}
 
-/* transport + utility buttons pick up the palette */
-.mg-npb button svg { transition: color .15s ease, fill .15s ease, filter .15s ease; }
-.mg-npb button:hover svg {
-  color: var(--mg-a2) !important;
-  fill: var(--mg-a2) !important;
-  filter: drop-shadow(0 0 6px rgba(var(--mg-a2-rgb), .7));
+/* Current lyric line: palette gradient, brighter weight and soft neon glow. */
+.lyrics-lyricsContainer-LyricsContainer [class*="lyrics-lyricsRow-active"],
+[data-testid="lyrics-container"] [class*="lyrics-lyricsRow-active"],
+.lyrics-lyricsContainer-LyricsContainer [aria-current="true"],
+[data-testid="lyrics-container"] [aria-current="true"] {
+  color: #fff !important;
+  opacity: 1 !important;
+  transform: scale(1.035) translateX(5px);
+  filter: none !important;
+  text-shadow: 0 0 22px var(--mg-lyrics-glow), 0 0 2px rgba(255,255,255,.35);
+  animation: mg-lyrics-focus .65s cubic-bezier(.2,.8,.2,1) both;
 }
-.mg-npb button[aria-checked="true"],
-.mg-npb button[aria-checked="mixed"],
-.main-shuffleButton-button.main-shuffleButton-active,
-.main-repeatButton-active,
-.main-repeatButton-activeOnce {
-  color: var(--mg-a2) !important;
+
+/* Upcoming and already-sung lines stay readable without competing with the active line. */
+.lyrics-lyricsContainer-LyricsContainer [class*="lyrics-lyricsRow-previous"],
+[data-testid="lyrics-container"] [class*="lyrics-lyricsRow-previous"] {
+  opacity: .32 !important;
 }
-.mg-npb button[aria-checked="true"] svg,
-.mg-npb button[aria-checked="mixed"] svg {
-  color: var(--mg-a2) !important;
-  fill: var(--mg-a2) !important;
+.lyrics-lyricsContainer-LyricsContainer [class*="lyrics-lyricsRow-next"],
+[data-testid="lyrics-container"] [class*="lyrics-lyricsRow-next"] {
+  opacity: .68 !important;
 }
-.mg-npb button:focus-visible { outline: 2px solid var(--mg-a2); outline-offset: 2px; border-radius: 50%; }
+
+/* Soft gradient highlight where Spotify exposes the active text node. */
+.lyrics-lyricsContainer-LyricsContainer [class*="lyrics-lyricsRow-active"] > *,
+[data-testid="lyrics-container"] [class*="lyrics-lyricsRow-active"] > * {
+  background: linear-gradient(95deg, #fff 0%, var(--mg-a2) 48%, var(--mg-a1) 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Smooth scrolling when Spotify advances the synchronized lyrics. */
+.lyrics-lyricsContainer-LyricsContainer,
+[data-testid="lyrics-container"] {
+  scroll-behavior: smooth !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--mg-a1-rgb), .45) transparent;
+}
+
+@keyframes mg-lyrics-focus {
+  0%   { transform: scale(.985) translateY(7px); opacity: .55; }
+  65%  { transform: scale(1.045) translateY(-1px); }
+  100% { transform: scale(1.035) translateY(0); opacity: 1; }
+}
+
+@media (max-width: 900px) {
+  .lyrics-lyricsContainer-LyricsContainer [class*="lyrics-lyricsRow"],
+  [data-testid="lyrics-container"] [class*="lyrics-lyricsRow"] {
+    font-size: clamp(21px, 3.5vw, 31px) !important;
+    padding-block: 7px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lyrics-lyricsContainer-LyricsContainer [class*="lyrics-lyricsRow"],
+  [data-testid="lyrics-container"] [class*="lyrics-lyricsRow"] {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}
