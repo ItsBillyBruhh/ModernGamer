@@ -780,3 +780,50 @@ button[data-testid="play-button"] svg,
   position: relative !important;
   z-index: 1 !important;
 }
+
+/* ===============================================================
+   9. CLEAN PLAYER + PLAY BUTTONS (explicit no-backdrop override)
+   =============================================================== */
+/* The right-side player has no album-art blur or tinted backdrop. */
+.mg-npb,
+.mg-npb-bg,
+.mg-npb-bg::before,
+.mg-npb-bg::after {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+}
+.mg-npb-bg {
+  display: none !important;
+}
+
+/* Keep play controls visible, but remove Spotify's green fill and any
+   theme gradient/fill behind the icon in every interaction state. */
+:where(.main-playButton-PlayButton, button[data-testid="play-button"],
+       [data-testid="play-button"], .main-card-PlayButtonContainer button,
+       .mg-pm [data-testid="control-button-playpause"],
+       .main-playPauseButton-button),
+:where(.main-playButton-PlayButton, button[data-testid="play-button"],
+       [data-testid="play-button"], .main-card-PlayButtonContainer button,
+       .mg-pm [data-testid="control-button-playpause"],
+       .main-playPauseButton-button):is(:hover, :focus, :focus-visible, :active) {
+  opacity: 1 !important;
+  visibility: visible !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+:where(.main-playButton-PlayButton, button[data-testid="play-button"],
+       [data-testid="play-button"], .main-card-PlayButtonContainer button,
+       .mg-pm [data-testid="control-button-playpause"],
+       .main-playPauseButton-button) svg {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+  color: #fff !important;
+  fill: #fff !important;
+}
