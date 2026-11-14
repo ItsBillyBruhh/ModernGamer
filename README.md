@@ -54,17 +54,12 @@ Only one page is open at a time, and opening any Spotify page closes it. Each pa
 - Keep the Now Playing panel open on the right; the player sits above it.
 - `theme.js` must load (the layout depends on it). Marketplace loads it automatically from the GitHub Pages URL in `manifest.json`, so **GitHub Pages must be enabled for this repo** (Settings → Pages → deploy from the main branch).
 - Colors live in `color.ini`; animation speeds are in the last sections of `user.css`.
-- Spacing: pages keep one intentional 4 px offset below the top navigation. `theme.js` measures the gap above the content on every page and removes only empty spacers and oversized top padding it finds. Nested wrappers tagged by the gap fixer are reset to 0 px so their padding cannot stack and recreate a large gap. If a page still has a gap, open the developer console and run `ModernGamer.debugGap()`; it prints what sits above the content.
+- Spacing: pages sit 4 px below the top navigation. `theme.js` measures the gap above the content on every page and removes only empty spacers and oversized top padding it finds. If a page still has a gap, open the developer console and run `ModernGamer.debugGap()`; it prints what sits above the content.
 
 ## Compatibility
-Targets Spotify 1.3.8.620 and 1.3.9.2055, including the `now-playing-widget-v2` player, with fallbacks for older player selectors. Spotify's class names change often, so the script finds panels by layout and `data-testid` rather than by class name. The behavior was tested in Chromium against a mock of Spotify's layout, not inside Spotify itself.
+Written for Spotify 1.3.8.620 with the `now-playing-widget-v2` player, with fallbacks for the older player selectors. Spotify's class names change often, so the script finds panels by layout and `data-testid` rather than by class name. The behavior was tested in Chromium against a mock of Spotify's layout, not inside Spotify itself.
 
 
 ## Lyrics experience
 
 The built-in Lyrics page retrieves available lyrics from LRCLIB. Timed lyrics follow playback, the active line receives an animated RGB highlight, and lyric lines transition smoothly as the song progresses. Plain lyrics are displayed without playback synchronization. Instrumental tracks and unavailable lyrics are identified rather than guessed. The page respects the operating system's reduced-motion preference.
-
-
-### Spotify 1.3.9 UI fixes
-- Softened the RGB separators to avoid harsh, misplaced-looking edges.
-- Added a CSS-drawn play glyph for Spotify home/card quick-play buttons when the updated UI omits its SVG icon.
