@@ -203,38 +203,6 @@ function mgFollowMain(top, place) {
   return () => { if (ro) ro.disconnect(); };
 }
 
-/* ---------- player background: the blurred cover (never the main cover) ---------- */
-function mgEnsurePlayerBg(bar) {
-  if (!bar) return;
-  let bg = bar.querySelector(':scope > .mg-npb-bg');
-  if (!bg) {
-    bg = document.createElement('div');
-    bg.className = 'mg-npb-bg';
-    bg.setAttribute('aria-hidden', 'true');
-    bg.innerHTML = '<i></i><i></i>';
-    bar.insertBefore(bg, bar.firstChild);
-  }
-  mgSetPlayerBg(bg);
-}
-
-function mgSetPlayerBg(bg) {
-  const url = mgTrack().art;
-  if (bg._url === url) return;
-  bg._url = url;
-  const a = bg.children[0], b = bg.children[1];
-  if (!url) { a.classList.remove('on'); b.classList.remove('on'); return; }
-  const im = new Image();
-  im.onload = () => {
-    if (bg._url !== url) return;                       // a newer song already took over
-    const nxt = bg._flip ? a : b, prv = bg._flip ? b : a;
-    bg._flip = !bg._flip;
-    nxt.style.backgroundImage = 'url("' + url + '")';
-    nxt.classList.add('on');
-    prv.classList.remove('on');
-  };
-  im.src = url;
-}
-
 /* soft fade/slide of the whole player block when the track changes */
 function mgTrackSwap() {
   document.querySelectorAll('.mg-widget').forEach((w) => {
@@ -242,8 +210,6 @@ function mgTrackSwap() {
     void w.offsetWidth;
     w.classList.add('mg-trackin');
   });
-  const bg = document.querySelector('.mg-npb-bg');
-  if (bg) mgSetPlayerBg(bg);
   document.querySelectorAll('.mg-cimg').forEach(mgApplyTrackArt);
 }
 
@@ -682,12 +648,6 @@ html:root{--mg-rgb:linear-gradient(90deg,var(--mg-stops)) !important;--mg-rgb-v:
 @keyframes mg-angle{to{--mg-a:360deg}}
 html body .mg-widget > .mg-cchain:not(:has(.mg-cimg))::before{display:none !important}
 html body .mg-widget > .mg-cchain:has(.mg-cimg)::before{background:conic-gradient(from 0deg,var(--mg-stops)) !important;box-shadow:0 0 36px rgba(var(--mg-a1-rgb),.6) !important}
-html body .mg-pm [data-testid="control-button-playpause"],
-html body .main-playButton-PlayButton,
-html body [data-testid="play-button"],
-html body .main-card-PlayButtonContainer button{
-  background:linear-gradient(135deg,var(--mg-a1),var(--mg-a2)) padding-box,conic-gradient(from var(--mg-a),var(--mg-stops)) border-box !important;
-  box-shadow:0 6px 24px rgba(var(--mg-a1-rgb),.55) !important}
 html body .mg-gn::after{box-shadow:0 0 12px rgba(var(--mg-a1-rgb),.6) !important}
 html body .main-trackList-trackListRow:hover,html body .main-trackList-trackListRow:focus-within{box-shadow:inset 3px 0 0 var(--mg-a2) !important}
 html body .main-trackList-trackListRow[aria-selected="true"]{box-shadow:inset 3px 0 0 var(--mg-a1) !important}
@@ -721,10 +681,6 @@ const MG_THEME_CSS = `
 html:root{--mg-rgb:linear-gradient(90deg,var(--mg-stops)) !important;--mg-rgb-v:linear-gradient(180deg,var(--mg-stops)) !important}
 html body .mg-widget > .mg-cchain::before{background:conic-gradient(from 0deg,var(--mg-stops)) !important;box-shadow:0 0 36px rgba(var(--mg-a1-rgb),.6) !important}
 html body .mg-widget > .mg-cchain:has(.mg-cimg)::before{background:conic-gradient(from 0deg,var(--mg-stops)) !important;box-shadow:0 0 36px rgba(var(--mg-a1-rgb),.6) !important}
-html body .mg-pm [data-testid="control-button-playpause"],
-html body .main-playButton-PlayButton,
-html body [data-testid="play-button"],
-html body .main-card-PlayButtonContainer button{box-sizing:border-box !important;border:3px solid transparent !important;background:linear-gradient(135deg,var(--mg-a1),var(--mg-a2)) padding-box,conic-gradient(from var(--mg-a),var(--mg-stops)) border-box !important;animation:mg-angle 4s linear infinite !important;box-shadow:0 6px 24px rgba(var(--mg-a1-rgb),.55) !important;filter:none !important}
 html body .mg-fill{background-color:transparent !important;background-image:var(--mg-rgb) !important;background-size:200% 100% !important}
 html body .mg-gn::after{background:var(--mg-rgb) !important;background-size:200% 100% !important;box-shadow:0 0 12px rgba(var(--mg-a1-rgb),.6) !important}
 html body .mg-ls::after,html body .mg-main::after{background:var(--mg-rgb-v) !important;background-size:100% 200% !important}
@@ -745,6 +701,91 @@ function mgInjectThemeCss() {
   else document.addEventListener('DOMContentLoaded', mgInjectThemeCss, { once: true });
 }
 mgInjectThemeCss();         // ...and the rules that make every rainbow spot follow it
+
+
+/* Final Spotify quick-play compatibility layer (Spotify 1.3.9+).
+   Spotify fades the OUTER card overlay, not just the button; keep that overlay visible.
+   The button itself stays transparent in every state, so no Spotify-green hover fill. */
+(function mgInstallQuickPlayFix() {
+  if (document.getElementById('mg-quickplay-final-fix')) return;
+  const st = document.createElement('style');
+  st.id = 'mg-quickplay-final-fix';
+  st.textContent = `
+    html body .main-card-card .main-card-PlayButtonContainer,
+    html body .main-card-PlayButtonContainer,
+    html body .main-playButton-PlayButtonContainer,
+    html body .main-playButton-PlayButton,
+    html body [data-testid="play-button"] {
+      opacity: 1 !important;
+      visibility: visible !important;
+      transform: none !important;
+      pointer-events: auto !important;
+    }
+    html body .main-card-card .main-card-PlayButtonContainer button,
+    html body .main-card-PlayButtonContainer button,
+    html body .main-playButton-PlayButton,
+    html body button[data-testid="play-button"],
+    html body [data-testid="play-button"] {
+      background: transparent !important;
+      background-color: transparent !important;
+      background-image: none !important;
+      border: 0 !important;
+      box-shadow: none !important;
+      filter: none !important;
+      color: #fff !important;
+      -webkit-text-fill-color: #fff !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+    }
+    html body .main-card-card .main-card-PlayButtonContainer button:hover,
+    html body .main-card-PlayButtonContainer button:hover,
+    html body .main-playButton-PlayButton:hover,
+    html body button[data-testid="play-button"]:hover,
+    html body [data-testid="play-button"]:hover,
+    html body button[data-testid="play-button"]:focus-visible,
+    html body [data-testid="play-button"]:focus-visible,
+    html body button[data-testid="play-button"]:active,
+    html body [data-testid="play-button"]:active {
+      background: transparent !important;
+      background-color: transparent !important;
+      background-image: none !important;
+      border: 0 !important;
+      box-shadow: none !important;
+      filter: none !important;
+      color: #fff !important;
+      -webkit-text-fill-color: #fff !important;
+    }
+    html body .main-card-PlayButtonContainer svg,
+    html body .main-playButton-PlayButton svg,
+    html body button[data-testid="play-button"] svg,
+    html body [data-testid="play-button"] svg,
+    html body .main-card-PlayButtonContainer svg *,
+    html body .main-playButton-PlayButton svg *,
+    html body button[data-testid="play-button"] svg *,
+    html body [data-testid="play-button"] svg * {
+      display: block !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+      color: #fff !important;
+      fill: #fff !important;
+      stroke: #fff !important;
+    }
+    /* Keep the card overlay itself from fading out before hover. */
+    html body .main-card-card .main-card-PlayButtonContainer {
+      opacity: 1 !important;
+      visibility: visible !important;
+      transform: none !important;
+    }
+    /* The right dock must not create or paint a second artwork layer. */
+    html body .Root__now-playing-bar.mg-npb .mg-npb-bg,
+    html body .Root__now-playing-bar.mg-npb .mg-npb-bg * {
+      display: none !important;
+      background: transparent !important;
+      background-image: none !important;
+    }
+  `;
+  (document.head || document.documentElement).appendChild(st);
+})();
 
 
 /* ---------- line the top-bar buttons up with the bell / avatar row ---------- */
@@ -1347,34 +1388,35 @@ const MG_LYR_CSS = `
 #mg-lyrpage .mg-lp-bg{position:absolute;inset:-60px;background-size:cover;background-position:center;filter:blur(50px) saturate(1.3);opacity:0;transform:scale(1.1);transition:opacity .6s ease}
 #mg-lyrpage .mg-lp-bg.on{opacity:.28}
 #mg-lyrpage .mg-lp-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(20,20,22,.6),rgba(20,20,22,.9))}
-#mg-lyrpage .mg-lp-head{position:absolute;left:0;right:56px;top:0;display:flex;align-items:center;gap:16px;padding:16px 24px;z-index:2;min-width:0}
-#mg-lyrpage .mg-lp-cover{width:64px;height:64px;flex:none;border-radius:50%;object-fit:cover;background:#1C1C20;box-shadow:0 0 0 2px #141416,0 0 0 4px rgba(var(--mg-a1-rgb,124,77,255),.6),0 0 22px rgba(var(--mg-a1-rgb,124,77,255),.4);image-rendering:auto;animation:mgl-cover-in .7s cubic-bezier(.2,.8,.2,1) both}
+#mg-lyrpage .mg-lp-head{position:absolute;left:0;right:56px;top:0;display:flex;align-items:center;gap:18px;padding:20px 28px;z-index:2;min-width:0;border-bottom:1px solid rgba(255,255,255,.07);background:linear-gradient(180deg,rgba(12,12,15,.42),rgba(12,12,15,0))}
+#mg-lyrpage .mg-lp-cover{width:72px;height:72px;flex:none;border-radius:16px;object-fit:cover;background:#1C1C20;box-shadow:0 0 0 1px rgba(255,255,255,.12),0 8px 30px rgba(0,0,0,.38),0 0 24px rgba(var(--mg-a1-rgb,124,77,255),.28);image-rendering:auto;animation:mgl-cover-in .7s cubic-bezier(.2,.8,.2,1) both}
 #mg-lyrpage .mg-lp-cover:not([src]){visibility:hidden}
 #mg-lyrpage .mg-lp-meta{min-width:0}
-#mg-lyrpage .mg-lp-title{font-size:20px;font-weight:800;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mg-lyrpage .mg-lp-title{font-size:22px;font-weight:850;letter-spacing:-.025em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 2px 16px rgba(0,0,0,.35)}
 #mg-lyrpage .mg-lp-artist{font-size:14px;color:#BDBDCB;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#mg-lyrpage .mg-lp-scroll{position:absolute;left:0;right:0;top:96px;bottom:34px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 14%,#000 86%,transparent 100%);mask-image:linear-gradient(180deg,transparent 0,#000 14%,#000 86%,transparent 100%)}
+#mg-lyrpage .mg-lp-scroll{position:absolute;left:0;right:0;top:112px;bottom:42px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;scroll-behavior:smooth;-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 12%,#000 88%,transparent 100%);mask-image:linear-gradient(180deg,transparent 0,#000 12%,#000 88%,transparent 100%)}
 #mg-lyrpage .mg-lp-scroll::-webkit-scrollbar{display:none}
-#mg-lyrpage .mg-lp-lines{max-width:760px;margin:0 auto;padding:30vh 32px;box-sizing:border-box}
-#mg-lyrpage .mg-lp-line{display:block;width:100%;margin:0;padding:10px 0;border:0;background:none;text-align:left;font:inherit;font-size:clamp(22px,2.6vw,34px);font-weight:800;line-height:1.32;letter-spacing:-.015em;color:#fff;opacity:.58;cursor:pointer;transition:opacity .45s ease,transform .55s cubic-bezier(.2,.8,.2,1),filter .45s ease;transform:translateX(0);transform-origin:left center;animation:mgl-line-in .65s both}
+#mg-lyrpage .mg-lp-lines{max-width:900px;margin:0 auto;padding:28vh 44px;box-sizing:border-box}
+#mg-lyrpage .mg-lp-line{display:block;width:100%;margin:0;padding:12px 0;border:0;background:none;text-align:left;font:inherit;font-size:clamp(23px,2.8vw,38px);font-weight:780;line-height:1.38;letter-spacing:-.025em;color:#fff;opacity:.48;cursor:pointer;transition:opacity .4s ease,transform .5s cubic-bezier(.2,.8,.2,1),filter .4s ease;transform:translateX(0);transform-origin:left center;animation:mgl-line-in .65s both;text-shadow:0 2px 16px rgba(0,0,0,.22)}
 #mg-lyrpage .mg-lp-line:hover{opacity:.9}
-#mg-lyrpage .mg-lp-line.past{opacity:.32}
+#mg-lyrpage .mg-lp-line.past{opacity:.24;transform:translateX(2px)}
 #mg-lyrpage .mg-lp-line.gap{font-size:20px;opacity:.28;cursor:default}
-#mg-lyrpage .mg-lp-line.now{opacity:1;transform:translateX(12px) scale(1.035);filter:drop-shadow(0 5px 18px rgba(var(--mg-a1-rgb,124,77,255),.22))}
+#mg-lyrpage .mg-lp-line.now{opacity:1;transform:translateX(14px) scale(1.045);filter:drop-shadow(0 5px 22px rgba(var(--mg-a1-rgb,124,77,255),.28))}
 #mg-lyrpage .mg-lp-line.now span{background:linear-gradient(90deg,var(--mg-stops,#FF2D55,#FF9500,#FFE600,#2BFF88,#00E5FF,#7C4DFF,#FF2BD6,#FF2D55));background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;animation:mgl-flow 5s linear infinite,mgl-active-glow 2.4s ease-in-out infinite;filter:drop-shadow(0 0 14px rgba(var(--mg-a1-rgb,124,77,255),.5))}
-#mg-lyrpage .mg-lp-plain{max-width:760px;margin:0 auto;padding:12px 32px 30vh;box-sizing:border-box;font-size:20px;font-weight:600;line-height:1.55;color:#E4E4EE;white-space:pre-wrap}
+#mg-lyrpage .mg-lp-plain{max-width:820px;margin:0 auto;padding:18px 40px 30vh;box-sizing:border-box;font-size:clamp(18px,1.8vw,22px);font-weight:560;line-height:1.8;letter-spacing:.005em;color:#E4E4EE;white-space:pre-wrap;text-shadow:0 2px 12px rgba(0,0,0,.24)}
 #mg-lyrpage .mg-lp-note{max-width:760px;margin:0 auto;padding:0 32px 6px;font-size:13px;color:#A8A8B3}
-#mg-lyrpage .mg-lp-status{position:absolute;left:0;right:0;top:96px;bottom:34px;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:0 32px}
+#mg-lyrpage .mg-lp-status{position:absolute;left:0;right:0;top:112px;bottom:42px;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:0 32px}
 #mg-lyrpage .mg-lp-status img{width:96px;height:96px;border-radius:18px;margin-bottom:10px;opacity:.95}
 #mg-lyrpage .mg-lp-status b{font-size:24px;font-weight:800}
 #mg-lyrpage .mg-lp-status span{font-size:15px;color:#BDBDCB;max-width:420px}
-#mg-lyrpage .mg-lp-src{position:absolute;left:0;right:0;bottom:10px;text-align:center;font-size:12px;color:#8E8E9A;z-index:2}
+#mg-lyrpage .mg-lp-src{position:absolute;left:0;right:0;bottom:12px;text-align:center;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#8E8E9A;z-index:2}
 #mg-lyrpage .mg-lp-close{position:absolute;top:14px;right:16px;width:34px;height:34px;padding:0;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#F2F2F5;font-size:14px;cursor:pointer;z-index:3}
 #mg-lyrpage .mg-lp-close:hover{color:var(--mg-a2,#00E5FF);border-color:var(--mg-a2,#00E5FF)}
 @keyframes mgl-flow{from{background-position:0% 0}to{background-position:250% 0}}
 @keyframes mgl-line-in{from{opacity:0;transform:translateY(14px)}to{opacity:.58;transform:translateY(0)}}
 @keyframes mgl-cover-in{from{opacity:0;transform:scale(.78) rotate(-18deg)}to{opacity:1;transform:scale(1) rotate(0)}}
 @keyframes mgl-active-glow{0%,100%{filter:drop-shadow(0 0 9px rgba(var(--mg-a1-rgb,124,77,255),.35))}50%{filter:drop-shadow(0 0 19px rgba(var(--mg-a2-rgb,0,229,255),.7))}}
+@media (max-width:700px){#mg-lyrpage .mg-lp-head{padding:14px 16px;gap:12px}#mg-lyrpage .mg-lp-cover{width:56px;height:56px;border-radius:12px}#mg-lyrpage .mg-lp-title{font-size:17px}#mg-lyrpage .mg-lp-scroll{top:88px}#mg-lyrpage .mg-lp-lines{padding:25vh 22px}#mg-lyrpage .mg-lp-line{font-size:clamp(21px,5vw,30px)}#mg-lyrpage .mg-lp-plain{padding:14px 22px 25vh}}
 @media (prefers-reduced-motion:reduce){#mg-lyrpage .mg-lp-line.now span{animation:none!important}#mg-lyrpage .mg-lp-line{transition:none;animation:none}#mg-lyrpage .mg-lp-cover{animation:none}}
 `;
 
