@@ -911,3 +911,45 @@ button[data-testid="play-button"] svg,
   display: none !important;
   background: transparent !important;
 }
+
+/* ===============================================================
+   11. PLAYLIST / MAIN VIEW SCROLL FIX
+   Keep the app grid bounded to the window and let the centre column
+   scroll independently. This prevents long playlists from being clipped
+   while leaving both sidebars in place.
+   =============================================================== */
+.mg-top,
+.Root__top-container {
+  height: 100vh !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  max-height: 100vh !important;
+  max-height: 100dvh !important;
+  grid-template-rows: auto auto minmax(0, 1fr) minmax(0, 1fr) !important;
+}
+
+.mg-main {
+  min-height: 0 !important;
+  max-height: 100% !important;
+  align-self: stretch !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mg-main > *,
+.mg-main .main-view-container {
+  min-height: 0 !important;
+}
+
+/* If Spotify's own virtual scroll viewport is present, allow it to use
+   the full centre column rather than inheriting a clipped height. */
+.mg-main .main-view-container__scroll-node,
+.mg-main .main-view-container__scroll-node-child,
+.mg-main .os-viewport,
+.mg-main [data-overlayscrollbars-viewport] {
+  min-height: 0 !important;
+  max-height: 100% !important;
+}
