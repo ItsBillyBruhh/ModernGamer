@@ -914,9 +914,9 @@ button[data-testid="play-button"] svg,
 
 /* ===============================================================
    11. PLAYLIST / MAIN VIEW SCROLL FIX
-   Keep the app grid bounded to the window and let the centre column
-   scroll independently. This prevents long playlists from being clipped
-   while leaving both sidebars in place.
+   Spotify's centre column spans the player row and the lower content row.
+   Keep the player row natural-height and give the remaining row the
+   available space; then make the actual centre viewport scrollable.
    =============================================================== */
 .mg-top,
 .Root__top-container {
@@ -925,31 +925,42 @@ button[data-testid="play-button"] svg,
   min-height: 0 !important;
   max-height: 100vh !important;
   max-height: 100dvh !important;
-  grid-template-rows: auto auto minmax(0, 1fr) minmax(0, 1fr) !important;
+  grid-template-rows: auto auto auto minmax(0, 1fr) !important;
 }
 
+/* The named main-view grid area spans rows 3 and 4. */
 .mg-main {
   min-height: 0 !important;
+  height: 100% !important;
   max-height: 100% !important;
   align-self: stretch !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  overscroll-behavior-y: contain;
+  overflow: auto !important;
+  overscroll-behavior: contain;
   scrollbar-gutter: stable;
   -webkit-overflow-scrolling: touch;
 }
 
-.mg-main > *,
+/* Spotify's content wrapper must not expand the grid item to fit every song. */
 .mg-main .main-view-container {
   min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: auto !important;
 }
 
-/* If Spotify's own virtual scroll viewport is present, allow it to use
-   the full centre column rather than inheriting a clipped height. */
+/* Spotify versions using an OverlayScrollbars viewport. */
 .mg-main .main-view-container__scroll-node,
 .mg-main .main-view-container__scroll-node-child,
 .mg-main .os-viewport,
 .mg-main [data-overlayscrollbars-viewport] {
   min-height: 0 !important;
   max-height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior-y: contain;
+}
+
+.mg-main .main-view-container__scroll-node-child {
+  height: auto !important;
+  min-height: 100% !important;
 }
