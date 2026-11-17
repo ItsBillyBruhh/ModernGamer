@@ -267,6 +267,20 @@ function mgMeasureGap(main) {
 
 function mgFixTopGap(main, log) {
   if (!main || !main.getBoundingClientRect) return;
+
+  // Playlist pages must keep Spotify's own bounded scroll viewport. The generic
+  // top-gap repair below can mistake the 68px global header offset for an
+  // oversized wrapper and add .mg-heightkill to the scroll node and its parents.
+  // That changes the viewport to height:auto, letting the full song list expand
+  // to its content height instead of scrolling inside the available main view.
+  const playlistPage = main.querySelector('[data-testid="playlist-page"], .playlist-playlist-page');
+  if (playlistPage) {
+    for (let n = playlistPage; n && n !== main; n = n.parentElement) {
+      n.classList.remove('mg-heightkill');
+    }
+    return;
+  }
+
   // forget old fixes that now wrap real content (React can reuse nodes between pages)
   main.querySelectorAll('.mg-gapkill').forEach((n) => {
     if (n.querySelector('img, svg, button, input') || n.textContent.trim()) n.classList.remove('mg-gapkill');
