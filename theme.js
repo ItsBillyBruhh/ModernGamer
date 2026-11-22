@@ -205,6 +205,8 @@ function mgFollowMain(top, place) {
 
 /* soft fade/slide of the whole player block when the track changes */
 function mgTrackSwap() {
+  const playerBar = document.querySelector('.Root__now-playing-bar.mg-npb');
+  if (playerBar) mgEnsureFallbackPlayerWidget(playerBar);
   document.querySelectorAll('.mg-widget').forEach((w) => {
     w.classList.remove('mg-trackin');
     void w.offsetWidth;
@@ -363,11 +365,69 @@ function childContaining(parent, target) {
   return [...parent.children].find((k) => k.contains(target));
 }
 
+/* Spotify's newer player markup can leave .main-nowPlayingBar-left empty and
+   no longer renders the old now-playing-widget node. Build the missing track-info
+   widget from Spicetify.Player.data in that empty left slot. */
+function mgEnsureFallbackPlayerWidget(bar) {
+  if (!bar) return null;
+  const left = bar.querySelector('.main-nowPlayingBar-left');
+  if (!left) return null;
+
+  let widget = left.querySelector('.mg-fallback-widget');
+  if (!widget) {
+    // Do not replace content Spotify has rendered itself.
+    if (left.children.length) return left.querySelector(
+      '[data-testid^="now-playing-widget"], .main-nowPlayingWidget-nowPlaying, .mg-widget'
+    );
+    widget = document.createElement('div');
+    widget.className = 'mg-widget mg-fallback-widget';
+    widget.setAttribute('data-mg-fallback-player', 'true');
+
+    const chain = document.createElement('div');
+    chain.className = 'mg-cchain';
+    const wrap = document.createElement('div');
+    wrap.className = 'mg-cwrap';
+    const img = document.createElement('img');
+    img.className = 'mg-cimg';
+    img.alt = 'Album artwork';
+    img.decoding = 'async';
+    img.loading = 'eager';
+    wrap.appendChild(img);
+    chain.appendChild(wrap);
+
+    const info = document.createElement('div');
+    info.className = 'main-trackInfo-container mg-fallback-track-info';
+    const title = document.createElement('div');
+    title.className = 'main-trackInfo-name';
+    title.setAttribute('data-testid', 'context-item-info-title');
+    const artist = document.createElement('div');
+    artist.className = 'main-trackInfo-artists';
+    artist.setAttribute('data-testid', 'context-item-info-artist');
+    info.append(title, artist);
+    widget.append(chain, info);
+    left.appendChild(widget);
+  }
+
+  const track = mgTrack();
+  const title = widget.querySelector('.main-trackInfo-name');
+  const artist = widget.querySelector('.main-trackInfo-artists');
+  const img = widget.querySelector('img');
+  if (title && title.textContent !== track.name) title.textContent = track.name || ' ';
+  if (artist && artist.textContent !== track.artists) artist.textContent = track.artists || ' ';
+  if (img && track.art && img.getAttribute('src') !== track.art) {
+    img._mgArt = '';
+    img.src = track.art;
+  }
+  return widget;
+}
+
 function tagPlayer(bar) {
   if (!bar) return;
-  const widget = bar.querySelector(
-    '[data-testid^="now-playing-widget"], .main-nowPlayingWidget-nowPlaying'
+  let widget = bar.querySelector(
+    '[data-testid^="now-playing-widget"], .main-nowPlayingWidget-nowPlaying, .mg-fallback-widget'
   );
+  if (!widget) widget = mgEnsureFallbackPlayerWidget(bar);
+  else if (widget.classList.contains('mg-fallback-widget')) mgEnsureFallbackPlayerWidget(bar);
   const play = bar.querySelector(
     '[data-testid="control-button-playpause"], [data-testid="control-button-play"], .main-playPauseButton-button'
   );

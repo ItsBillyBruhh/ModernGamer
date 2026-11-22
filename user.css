@@ -964,3 +964,51 @@ button[data-testid="play-button"] svg,
   height: auto !important;
   min-height: 100% !important;
 }
+
+/* Fallback track information for Spotify builds that no longer render the
+   legacy now-playing-widget in the left player column. */
+.mg-fallback-widget {
+  display: flex !important;
+  flex-direction: column !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  gap: 10px !important;
+  text-align: center !important;
+}
+.mg-fallback-widget .mg-cchain {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  padding: 10px 0 !important;
+}
+.mg-fallback-widget .mg-cimg {
+  display: block !important;
+  width: var(--mg-cover, 200px) !important;
+  height: var(--mg-cover, 200px) !important;
+  max-width: min(100%, 220px) !important;
+  object-fit: cover !important;
+  border-radius: 50% !important;
+}
+.mg-fallback-track-info {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  gap: 5px !important;
+  text-align: center !important;
+}
+.mg-fallback-track-info .main-trackInfo-name,
+.mg-fallback-track-info .main-trackInfo-artists {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
