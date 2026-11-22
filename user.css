@@ -1012,3 +1012,25 @@ button[data-testid="play-button"] svg,
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
 }
+
+/* ===============================================================
+   11. REMOVE TWO UNWANTED DUPLICATE/OVERLAY ELEMENTS
+   - Hide the hover play/pause overlay on the playlist header artwork.
+   - Hide the duplicate compact track-info row in the right Now Playing view.
+   The main playlist Play button and the custom circular player controls remain.
+   =============================================================== */
+.playlist-playlist-playlistContent .main-entityHeader-image [data-testid="play-button"],
+.playlist-playlist-playlistContent .main-entityHeader-image .main-playButton-PlayButtonContainer,
+.playlist-playlist-playlistContent .main-entityHeader-image .main-playButton-PlayButton,
+.playlist-playlist-playlistContent .main-entityHeader-image [class*="PlayButtonContainer"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.Root__right-sidebar .main-nowPlayingView-container .main-trackInfo-container,
+.Root__right-sidebar .main-nowPlayingView-container [data-testid="context-item-info"],
+.Root__right-sidebar .main-nowPlayingView-container [data-testid="now-playing-widget"] {
+  display: none !important;
+  visibility: hidden !important;
+}
